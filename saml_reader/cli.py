@@ -17,7 +17,7 @@ def read_file(filename):
     try:
         with open(filename, 'r') as f:
             data = f.read()
-    except FileNotFoundError as e:
+    except FileNotFoundError:
         raise FileNotFoundError(f"Cannot find file specified: {filename}")
     return data
 
