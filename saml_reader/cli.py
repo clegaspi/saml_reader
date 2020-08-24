@@ -64,6 +64,14 @@ def parse(source, input_type, filename=None):
               "to send an unencrypted SAML response.")
         return
 
+    if not saml.validate_num_assertions():
+        if bytes("AuthnRequest", "utf-8") in saml.response:
+            print("The input data appears to be a SAML request instead of a SAML response.\n"
+                  "Please ask the customer for the SAML response instead of the request.")
+        else:
+            print("The SAML data does not contain any response data.")
+        return
+
     try:
         cert = Certificate(saml.get_certificate())
     except ValueError:
