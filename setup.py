@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 
 from setuptools import setup
+from saml_reader.cli import __version__
 
 setup(
       name='saml_reader',
-      version='0.0.2a',
+      version=__version__,
       description='SAML response parser for MongoDB Cloud',
       author='Christian Legaspi',
       author_email='christian.legaspi@mongodb.com',

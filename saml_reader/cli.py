@@ -8,6 +8,7 @@ from saml_reader.cert import Certificate
 from saml_reader.saml import SamlParser
 from saml_reader.har import HarParser
 
+__version__ = "0.0.0a2"
 
 REQUIRED_ATTRIBUTES = {'firstName', 'lastName', 'email'}
 VALID_INPUT_TYPES = {'base64', 'xml', 'har'}
@@ -113,7 +114,7 @@ def cli():
                         dest='input_type', action='store', required=False,
                         choices=['xml', 'base64', 'har'], default='xml',
                         help='type of data being read in (default: xml)')
-    parser.add_argument('--version', action='version', version='%(prog)s 0.0.2a')
+    parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
 
     parsed_args = parser.parse_args(sys.argv[1:])
 
