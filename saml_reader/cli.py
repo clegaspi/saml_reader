@@ -57,17 +57,22 @@ def parse(source, input_type, filename=None):
         raise ValueError(f"Invalid source: {source}")
 
     saml = parse_raw_data(input_type, raw_data)
-    cert = Certificate(saml.get_certificate())
+    try:
+        cert = Certificate(saml.get_certificate())
+    except ValueError:
+        print("Could not locate certificate. Identity provider info will not be available.")
+        cert = None
     display(saml, cert)
 
 
 def display(saml, cert):
     print(f"SAML READER")
     print(f"----------------------")
-    print(f"IDENTITY PROVIDER "
-          f"(if this is the customer's company, it may be on-prem ADFS):"
-          f"\n{cert.get_organization_name()}")
-    print("---")
+    if cert is not None:
+        print(f"IDENTITY PROVIDER "
+              f"(from certificate):"
+              f"\n{cert.get_organization_name() or cert.get_common_name()}")
+        print("---")
     print(f"ISSUER URI:"
           f"\n{saml.get_issuers()[0]}")
     print("---")
@@ -79,7 +84,7 @@ def display(saml, cert):
     print("---")
     print(f"NAME ID:"
           f"\nValue (this should be an e-mail): {saml.get_subject_nameid()}"
-          f"\nFormat (this should contain 'Unspecified' or 'Email'): "
+          f"\nFormat (this should end in 'unspecified' or 'emailAddress'): "
           f"{saml.get_subject_nameid_format()}")
     print("---")
     print(f"ATTRIBUTES:")

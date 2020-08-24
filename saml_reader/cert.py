@@ -21,3 +21,6 @@ class Certificate(object):
 
     def get_organization_name(self):
         return self.get_subject().get("O")
+
+    def get_common_name(self):
+        return self.get_subject().get("CN")
