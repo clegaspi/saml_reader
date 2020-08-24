@@ -18,8 +18,9 @@ This tool requires a few packages for parsing.
 ### Running the CLI
 
 This tool can accept a SAML response as properly-formatted XML or
-a base64-encoded string, either in a file, from the system clipboard,
-or from a pipe.
+a base64-encoded string, or it can be extracted directly from a HAR file dump. 
+The data can be input from a file, from the system clipboard,
+or from a Unix pipe.
 
 #### Reading from a file with different types
 
@@ -34,7 +35,7 @@ saml_reader /path/to/harfile.har --type har     # har requires flag
 If you have the xml, base64, or har data in your system clipboard, run:
 
 ```bash
-saml_reader --clip --type <xml, base64, har>
+saml_reader clip --type <xml, base64, har>
 ```
 
 No `--type` flag is required for XML file.
@@ -48,3 +49,5 @@ cat file.xml | saml_reader
 cat base64.txt | saml_reader --type base64
 cat file.har | saml_reader --type har
 ```
+
+You can specify `saml_reader stdin` but it is not required. 
