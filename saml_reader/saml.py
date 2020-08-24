@@ -2,10 +2,18 @@ from onelogin.saml2.response import OneLogin_Saml2_Response
 from onelogin.saml2.utils import OneLogin_Saml2_Utils as utils
 
 
+class SamlResponseEncryptedError(Exception):
+    pass
+
+
 class SamlParser(OneLogin_Saml2_Response):
     def __init__(self, response):
         # response should be base64 encoded
-        super().__init__(None, response)
+        try:
+            super().__init__(None, response)
+        except AttributeError as e:
+            if 'get_sp_key' in e.args[0]:
+                raise SamlResponseEncryptedError("SAML response is encrypted. Cannot parse without key")
 
     @classmethod
     def from_xml(cls, xml):

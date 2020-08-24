@@ -4,7 +4,7 @@ import pyperclip
 import argparse
 
 from saml_reader.cert import Certificate
-from saml_reader.saml import SamlParser
+from saml_reader.saml import SamlParser, SamlResponseEncryptedError
 from saml_reader.har import HarParser
 
 __version__ = "0.0.0a4"
@@ -56,7 +56,14 @@ def parse(source, input_type, filename=None):
     else:
         raise ValueError(f"Invalid source: {source}")
 
-    saml = parse_raw_data(input_type, raw_data)
+    try:
+        saml = parse_raw_data(input_type, raw_data)
+    except SamlResponseEncryptedError:
+        print("SAML response is encrypted. Cannot parse.\n"
+              "Advise customer to update their identity provider "
+              "to send an unencrypted SAML response.")
+        return
+
     try:
         cert = Certificate(saml.get_certificate())
     except ValueError:
