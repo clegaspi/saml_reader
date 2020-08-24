@@ -1,5 +1,4 @@
 import sys
-import os
 
 import pyperclip
 import argparse
@@ -8,26 +7,29 @@ from saml_reader.cert import Certificate
 from saml_reader.saml import SamlParser
 from saml_reader.har import HarParser
 
-__version__ = "0.0.0a2"
+__version__ = "0.0.0a3"
 
 REQUIRED_ATTRIBUTES = {'firstName', 'lastName', 'email'}
 VALID_INPUT_TYPES = {'base64', 'xml', 'har'}
 
 
-def read_file(input_type, filename):
-    with open(filename, 'r') as f:
-        data = f.read()
-    return parse_raw_data(input_type, data)
+def read_file(filename):
+    try:
+        with open(filename, 'r') as f:
+            data = f.read()
+    except FileNotFoundError as e:
+        raise FileNotFoundError(f"Cannot find file specified: {filename}")
+    return data
 
 
-def read_clipboard(input_type='base64'):
+def read_clipboard():
     data = pyperclip.paste()
-    return parse_raw_data(input_type, data)
+    return data
 
 
-def read_stdin(input_type='base64'):
+def read_stdin():
     data = "".join(sys.stdin.readlines())
-    return parse_raw_data(input_type, data)
+    return data
 
 
 def parse_raw_data(input_type, data):
@@ -40,20 +42,21 @@ def parse_raw_data(input_type, data):
     raise ValueError(f"Invalid data type specified: {input_type}")
 
 
-def main(source, input_type):
+def parse(source, input_type, filename=None):
     input_type = input_type.lower()
     if input_type not in VALID_INPUT_TYPES:
         raise ValueError(f"Invalid input type: {input_type}")
 
     if source == 'clip':
-        saml = read_clipboard(input_type)
+        raw_data = read_clipboard()
     elif source == 'stdin':
-        saml = read_stdin(input_type)
-    elif os.path.exists(source):
-        saml = read_file(input_type, source)
+        raw_data = read_stdin()
+    elif source == 'file':
+        raw_data = read_file(filename)
     else:
         raise ValueError(f"Invalid source: {source}")
 
+    saml = parse_raw_data(input_type, raw_data)
     cert = Certificate(saml.get_certificate())
     display(saml, cert)
 
@@ -119,13 +122,15 @@ def cli():
     parsed_args = parser.parse_args(sys.argv[1:])
 
     source = 'stdin'
+    filename = None
     if parsed_args.filepath is None:
         if parsed_args.clip:
             source = 'clip'
     else:
-        source = parsed_args.filepath
+        source = 'file'
+        filename = parsed_args.filepath
 
-    main(source, parsed_args.input_type)
+    parse(source, parsed_args.input_type, filename=filename)
 
 
 if __name__ == '__main__':

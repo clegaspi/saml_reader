@@ -16,25 +16,25 @@ class SamlParser(OneLogin_Saml2_Response):
             '/ds:Signature/ds:KeyInfo/ds:X509Data/ds:X509Certificate')
         if result:
             return result[0].text
-        raise Exception("Did not find certificate")
+        raise ValueError("Did not find certificate")
 
     def get_subject_nameid(self):
         result = self._OneLogin_Saml2_Response__query_assertion(
             '/saml:Subject/saml:NameID')
         if result:
             return result[0].text
-        raise Exception("Did not find Name ID")
+        raise ValueError("Did not find Name ID")
 
     def get_subject_nameid_format(self):
         result = self._OneLogin_Saml2_Response__query_assertion(
             '/saml:Subject/saml:NameID')
         if result:
             return result[0].attrib['Format']
-        raise Exception("Did not find Name ID Format")
+        raise ValueError("Did not find Name ID Format")
 
     def get_acs(self):
         result = self._OneLogin_Saml2_Response__query(
             '/samlp:Response')
         if result:
             return result[0].attrib['Destination']
-        raise Exception("Did not find ACS")
+        raise ValueError("Did not find ACS")
