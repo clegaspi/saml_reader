@@ -7,7 +7,7 @@ from saml_reader.cert import Certificate
 from saml_reader.saml import SamlParser
 from saml_reader.har import HarParser
 
-__version__ = "0.0.0a3"
+__version__ = "0.0.0a4"
 
 REQUIRED_ATTRIBUTES = {'firstName', 'lastName', 'email'}
 VALID_INPUT_TYPES = {'base64', 'xml', 'har'}
