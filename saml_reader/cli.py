@@ -99,21 +99,32 @@ def cli():
                                      description='Read a SAML response and pull out '
                                                  'relevant values for diagnosing '
                                                  'federated authentication issues.')
-    parser.add_argument('source', metavar="<stdin, clip, PATH>", action='store',
-                        default="stdin", nargs='?',
-                        help='where to read data from.\n'
-                             'stdin (default): read from pipe\n'
-                             'clip: read from system clipboard\n'
-                             'PATH: read from file specified by PATH'
-                        )
+    parser.add_argument('filepath', metavar="PATH", action='store',
+                        default=None, nargs='?',
+                        help='path for source file. If omitted, '
+                             'input is assumed from stdin unless --clip is specified')
+    parser.add_argument('--stdin',
+                        dest='stdin', action='store_true', required=False,
+                        help='read data from stdin (this is default if not specified)')
+    parser.add_argument('--clip',
+                        dest='clip', action='store_true', required=False,
+                        help='read data from system clipboard')
     parser.add_argument('--type',
                         dest='input_type', action='store', required=False,
                         choices=['xml', 'base64', 'har'], default='xml',
                         help='type of data being read in (default: xml)')
-    parser.add_argument('--version', action='version', version='%(prog)s 0.0.1')
+    parser.add_argument('--version', action='version', version='%(prog)s 0.0.2a')
 
     parsed_args = parser.parse_args(sys.argv[1:])
-    main(parsed_args.source, parsed_args.input_type)
+
+    source = 'stdin'
+    if parsed_args.filepath is None:
+        if parsed_args.clip:
+            source = 'clip'
+    else:
+        source = parsed_args.filepath
+
+    main(source, parsed_args.input_type)
 
 
 if __name__ == '__main__':
