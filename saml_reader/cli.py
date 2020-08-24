@@ -25,7 +25,7 @@ def read_clipboard(input_type='base64'):
 
 
 def read_stdin(input_type='base64'):
-    data = sys.stdin.read()
+    data = "".join(sys.stdin.readlines())
     return parse_raw_data(input_type, data)
 
 
@@ -99,9 +99,8 @@ def cli():
                                      description='Read a SAML response and pull out '
                                                  'relevant values for diagnosing '
                                                  'federated authentication issues.')
-    parser.add_argument('--version', action='version', version='%(prog)s 0.0.1')
     parser.add_argument('source', metavar="<stdin, clip, PATH>", action='store',
-                        type=str,
+                        default="stdin", nargs='?',
                         help='where to read data from.\n'
                              'stdin (default): read from pipe\n'
                              'clip: read from system clipboard\n'
@@ -111,6 +110,7 @@ def cli():
                         dest='input_type', action='store', required=False,
                         choices=['xml', 'base64', 'har'], default='xml',
                         help='type of data being read in (default: xml)')
+    parser.add_argument('--version', action='version', version='%(prog)s 0.0.1')
 
     parsed_args = parser.parse_args(sys.argv[1:])
     main(parsed_args.source, parsed_args.input_type)
