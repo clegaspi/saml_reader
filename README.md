@@ -35,7 +35,7 @@ saml_reader /path/to/harfile.har --type har     # har requires flag
 If you have the xml, base64, or har data in your system clipboard, run:
 
 ```bash
-saml_reader --clip --type <xml, base64, har>
+saml_reader clip --type <xml, base64, har>
 ```
 
 No `--type` flag is required for XML file.
@@ -49,3 +49,5 @@ cat file.xml | saml_reader
 cat base64.txt | saml_reader --type base64
 cat file.har | saml_reader --type har
 ```
+
+You can specify `saml_reader stdin` but it is not required. 
