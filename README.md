@@ -18,8 +18,9 @@ This tool requires a few packages for parsing.
 ### Running the CLI
 
 This tool can accept a SAML response as properly-formatted XML or
-a base64-encoded string, either in a file, from the system clipboard,
-or from a pipe.
+a base64-encoded string, or it can be extracted directly from a HAR file dump. 
+The data can be input from a file, from the system clipboard,
+or from a Unix pipe.
 
 #### Reading from a file with different types
 
