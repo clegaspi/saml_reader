@@ -5,8 +5,16 @@ There is some extra checks for MDB Cloud, but not many so far.
 
 ### Install
 
+One of the tools used in this package requires `xmlsec`, which requires some libraries be installed on your system. See [this page](https://pypi.org/project/xmlsec/) for details on the required packages. For Mac, they can be installed by running [Homebrew](https://brew.sh/):
+
+```
+brew install libxml2 libxmlsec1 pkg-config
+```
+
+To install the actual package once the dependencies have been installed:
+
 1. Clone repository
-2. If you wish to run this package in an environment, create the environment of your choice with Python 3.6+. Open the environment.
+2. If you wish to run this package in an environment such as [virtualenv](https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/) or [Anaconda](https://docs.conda.io/projects/conda/en/latest/user-guide/getting-started.html), create the environment of your choice with Python 3.6+ and activate it. I always recommend installing in an environment, but if you wish to install the package globally, skip to step 3.
 3. In root directory of the repository, run:
 ```bash
 pip install .
