@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from setuptools import setup
-from saml_reader.cli import __version__
+from saml_reader.version import __version__
 
 setup(
       name='saml_reader',
