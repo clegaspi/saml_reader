@@ -21,7 +21,18 @@ pip install .
 ```
 4. Run the command line interface by running `saml_reader`
 
-This tool requires a few packages for parsing.
+This tool requires a few packages for parsing the data.
+
+### Updating the package
+
+As this software is in its infancy, updates will be made quickly as bugs are discovered and improvements are made. To get the latest version, from the root of the repository, run:
+
+```
+git pull
+pip install .
+```
+
+This should uninstall the old version and install the new.
 
 ### Running the CLI
 
