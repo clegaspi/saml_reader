@@ -6,7 +6,7 @@ import argparse
 from saml_reader.cert import Certificate
 from saml_reader.saml import SamlParser, SamlResponseEncryptedError
 from saml_reader.har import HarParser
-from saml_reader.version import __version__
+from saml_reader import __version__
 
 
 REQUIRED_ATTRIBUTES = {'firstName', 'lastName', 'email'}
