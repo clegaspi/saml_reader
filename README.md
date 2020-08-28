@@ -78,7 +78,7 @@ cat file.har | saml_reader --type har
 
 You can specify `saml_reader --stdin` but it is not required. 
 
-#### Reporting issues
+### Reporting issues
 
 Because this tool inherently deals with personally identifiable information (PII)
 and security information, this bears repeating...
@@ -93,7 +93,7 @@ this tool. This tool is in its infancy, so it's sure to have issues and non-grac
 handling of errors. To report an issue, please open an issue on this repository,
 describing the issue you are experiencing and one of the maintainers will look into the issue.
 
-#### Contributing
+### Contributing
 
 I do not have any specific requirements for contributing at this time, other than
 that I am using Google-style docstrings. Please feel free to open a pull request!
