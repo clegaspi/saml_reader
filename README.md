@@ -1,12 +1,16 @@
-## SAML Reader
+# SAML Reader
 
-<span style="color:red">**IMPORTANT**: Please **DO NOT** add any personally 
-identifible information (PII) when reporting an issue.</span>
+## **IMPORTANT**
+Please **DO NOT** add any personally identifiable information (PII) when reporting an issue.
 
+This means **DO NOT** upload any SAML data, even if it is yours. I don't want to be responsible
+for it. :)
+
+### What is this tool?
 This tool parses SAML responses, gathering relevant info for diagnosing issues with federated authentication for Cloud.
 There is some extra checks for MDB Cloud, but not many so far.
 
-### Install
+### Installation
 
 One of the tools used in this package requires `xmlsec`, which requires some libraries be installed on your system. See [this page](https://pypi.org/project/xmlsec/) for details on the required packages. For Mac, they can be installed by running [Homebrew](https://brew.sh/):
 
@@ -76,14 +80,20 @@ You can specify `saml_reader --stdin` but it is not required.
 
 #### Reporting issues
 
-Because this tool inherently deals with personally identifible information (PII)
+Because this tool inherently deals with personally identifiable information (PII)
 and security information, this bears repeating...
 
-<span style="color:red">**IMPORTANT**: Please **DO NOT** add any personally 
-identifible information (PII) when reporting an issue.</span>
+**IMPORTANT: Please DO NOT add any personally**
+**identifiable information (PII) when reporting an issue.**
 
 This means **DO NOT** upload any SAML data, even if it is yours.
 
 That said, thank you in advance for reporting any issues that you find while using
-this tool. To report an issue, please open an issue on this repository and one
-of the maintainers will look into the issue.
+this tool. This tool is in its infancy, so it's sure to have issues and non-graceful
+handling of errors. To report an issue, please open an issue on this repository,
+describing the issue you are experiencing and one of the maintainers will look into the issue.
+
+#### Contributing
+
+I do not have any specific requirements for contributing at this time, other than
+that I am using Google-style docstrings. Please feel free to open a pull request!
