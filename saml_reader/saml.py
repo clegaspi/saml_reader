@@ -64,7 +64,7 @@ class SamlParser(OneLogin_Saml2_Response):
             '/ds:Signature/ds:KeyInfo/ds:X509Data/ds:X509Certificate')
         if result:
             return result[0].text
-        # Maybe change these functions to return none instead of failing hard
+        # TODO: Maybe change these functions to return none instead of failing hard
         raise ValueError("Did not find certificate")
 
     def get_subject_nameid(self):
@@ -94,7 +94,7 @@ class SamlParser(OneLogin_Saml2_Response):
         result = self._OneLogin_Saml2_Response__query_assertion(
             '/saml:Subject/saml:NameID')
         if result:
-            # Change to .get('Format') if changing function to soft fail
+            # TODO: Change to .get('Format') if changing function to soft fail
             return result[0].attrib['Format']
         raise ValueError("Did not find Name ID Format")
 
@@ -111,6 +111,6 @@ class SamlParser(OneLogin_Saml2_Response):
         result = self._OneLogin_Saml2_Response__query(
             '/samlp:Response')
         if result:
-            # Change to .get('Destination') if changing function to soft fail
+            # TODO: Change to .get('Destination') if changing function to soft fail
             return result[0].attrib['Destination']
         raise ValueError("Did not find ACS")
