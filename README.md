@@ -1,5 +1,8 @@
 ## SAML Reader
 
+<span style="color:red">**IMPORTANT**: Please **DO NOT** add any personally 
+identifible information (PII) when reporting an issue.</span>
+
 This tool parses SAML responses, gathering relevant info for diagnosing issues with federated authentication for Cloud.
 There is some extra checks for MDB Cloud, but not many so far.
 
@@ -70,3 +73,17 @@ cat file.har | saml_reader --type har
 ```
 
 You can specify `saml_reader --stdin` but it is not required. 
+
+#### Reporting issues
+
+Because this tool inherently deals with personally identifible information (PII)
+and security information, this bears repeating...
+
+<span style="color:red">**IMPORTANT**: Please **DO NOT** add any personally 
+identifible information (PII) when reporting an issue.</span>
+
+This means **DO NOT** upload any SAML data, even if it is yours.
+
+That said, thank you in advance for reporting any issues that you find while using
+this tool. To report an issue, please open an issue on this repository and one
+of the maintainers will look into the issue.
