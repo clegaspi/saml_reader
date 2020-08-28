@@ -31,6 +31,9 @@ class SamlParser(OneLogin_Saml2_Response):
         Raises:
             (SamlResponseEncryptedError) Raised when SAML response is encrypted
         """
+        # TODO: Add a kwarg to URL-decode the base64 before parsing because if someone
+        #       pulled the SAML response from a HAR directly or from the developer console,
+        #       they may pull a URL-encoded version
         try:
             super().__init__(None, response)
         except AttributeError as e:
