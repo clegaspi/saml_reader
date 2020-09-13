@@ -96,3 +96,10 @@ class MongoVerifier:
                     bad_attributes.add(name)
 
         return bad_attributes
+
+    def verify_name_id_and_email_are_the_same(self):
+        # Not a requirement, but may indicate that a setting is incorrect
+        name_id = self.get_name_id()
+        email = self.get_claim_attributes().get("email")
+
+        return name_id and email and name_id == email
