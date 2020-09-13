@@ -18,7 +18,6 @@ from saml_reader.har import HarParser
 from saml_reader import __version__
 
 
-REQUIRED_ATTRIBUTES = {'firstName', 'lastName', 'email'}
 VALID_INPUT_TYPES = {'base64', 'xml', 'har'}
 
 
