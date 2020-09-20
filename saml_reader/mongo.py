@@ -103,3 +103,82 @@ class MongoVerifier:
         email = self.get_claim_attributes().get("email")
 
         return name_id and email and name_id == email
+
+
+class MongoFederationConfig:
+    """
+
+    """
+    class __ValueNotSet:
+        pass
+
+    __NOT_SET = __ValueNotSet()
+
+    def __init__(self, first_name=__NOT_SET, last_name=__NOT_SET, email=__NOT_SET,
+                 issuer=__NOT_SET, acs=__NOT_SET, audience=__NOT_SET, encryption=__NOT_SET):
+
+        invalid_attributes = set()
+
+        self.first_name = first_name
+        if first_name is not self.__NOT_SET and not self._verify_first_name():
+            invalid_attributes.add(("First Name", first_name))
+
+        self.last_name = last_name
+        if last_name is not self.__NOT_SET and not self._verify_last_name():
+            invalid_attributes.add(("Last Name", last_name))
+
+        self.email = email
+        if email is not self.__NOT_SET and not self._verify_email():
+            invalid_attributes.add(("E-mail", email))
+
+        self.issuer = issuer
+        if issuer is not self.__NOT_SET and not self._verify_issuer():
+            invalid_attributes.add(("Issuer URI", issuer))
+
+        self.acs = acs
+        if acs is not self.__NOT_SET and not self._verify_acs():
+            invalid_attributes.add(("Assertion Consumer Service URL", acs))
+
+        self.audience = audience
+        if audience is not self.__NOT_SET and not self._verify_audience():
+            invalid_attributes.add(("Audience URI", audience))
+
+        self.encryption = encryption
+        if encryption is not self.__NOT_SET and not self._verify_encryption():
+            invalid_attributes.add(("Encryption Algorithm", encryption))
+
+    def _verify_first_name(self):
+        if re.match(r"\S+", self.first_name):
+            return True
+        return False
+
+    def _verify_last_name(self):
+        if re.match(r"\S+", self.last_name):
+            return True
+        return False
+
+    def _verify_email(self):
+        if re.fullmatch(EMAIL_REGEX_MATCH, self.email):
+            return True
+        return False
+
+    def _verify_issuer(self):
+        if re.match(r"\S+", self.first_name):
+            return True
+        return False
+
+    def _verify_acs(self):
+        if re.fullmatch(r"^https:\/\/auth\.mongodb\.com\/sso\/saml2\/[a-z0-9A-Z]{20}$", self.acs):
+            return True
+        return False
+
+    def _verify_audience(self):
+        if re.fullmatch(r"^https:\/\/www\.okta\.com\/saml2\/service-provider\/[a-z]{20}$", self.audience):
+            return True
+        return False
+
+    def _verify_encryption(self):
+        if self.encryption in {'SHA-256', 'SHA-1'}:
+            return True
+        return False
+
