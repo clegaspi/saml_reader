@@ -5,6 +5,8 @@ and pulling specific pieces of information from the contents of the response doc
 In large part, the functionality builds on the python3-saml package produced by OneLogin.
 """
 
+import re
+
 from onelogin.saml2.response import OneLogin_Saml2_Response
 from onelogin.saml2.utils import OneLogin_Saml2_Utils as utils
 
@@ -117,3 +119,23 @@ class SamlParser(OneLogin_Saml2_Response):
             # TODO: Change to .get('Destination') if changing function to soft fail
             return result[0].attrib['Destination']
         raise ValueError("Did not find ACS")
+
+    def get_encryption_algorithm(self):
+        """
+        Retrieves the encryption algorithm used for certificate. Should be
+        "sha1" or "sha256".
+
+        Returns:
+            (basestring) Value of encryption algorithm
+        Raises:
+            (ValueError) Raised when the Assertion Consumer Service
+             entry is not found in the data
+        """
+        result = self._OneLogin_Saml2_Response__query_assertion(
+            '/ds:Signature/ds:SignedInfo/ds:SignatureMethod')
+        if result:
+            # TODO: Change to .get('Algorithm') if changing function to soft fail
+            algorithm_uri = result[0].attrib['Algorithm']
+            algorithm = re.findall(r"(sha(?:1|256))", algorithm_uri)[0]
+            return algorithm
+        raise ValueError("Did not find Name ID Format")

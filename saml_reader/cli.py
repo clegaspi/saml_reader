@@ -16,6 +16,7 @@ from saml_reader.cert import Certificate
 from saml_reader.saml import SamlParser, SamlResponseEncryptedError
 from saml_reader.har import HarParser
 from saml_reader import __version__
+from saml_reader.mongo import MongoFederationConfig, MongoVerifier
 
 
 VALID_INPUT_TYPES = {'base64', 'xml', 'har'}
@@ -88,7 +89,7 @@ def parse_raw_data(input_type, data):
     raise ValueError(f"Invalid data type specified: {input_type}")
 
 
-def parse(source, input_type, filename=None):
+def parse(source, input_type, filename=None, comparison_values=None):
     """
     Parses input for SAML response and displays summary and analysis
 
@@ -101,6 +102,8 @@ def parse(source, input_type, filename=None):
             `'base64'`, `'xml'`, or `'har'`
         filename (basestring, Optional): path of file to read, only required
             if `source` is `'file'`
+        comparison_values (MongoFederationConfig, Optional): federation
+            configuration options to compare with those received in SAML response
 
     Returns:
         None
@@ -143,7 +146,9 @@ def parse(source, input_type, filename=None):
     except ValueError:
         print("Could not locate certificate. Identity provider info will not be available.")
         cert = None
-    display(saml, cert)
+
+    verifier = MongoVerifier(saml, cert, comparison_values)
+    verifier.validate_configuration()
 
 
 def display(saml, cert):
@@ -227,6 +232,9 @@ def cli():
                         dest='input_type', action='store', required=False,
                         choices=['xml', 'base64', 'har'], default='xml',
                         help='type of data being read in (default: xml)')
+    parser.add_argument('--compare',
+                        dest='prompt_for_comparison_values', action='store_true', required=False,
+                        help='prompt to enter expected values vs. parsed values')
     parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
 
     parsed_args = parser.parse_args(sys.argv[1:])
@@ -240,7 +248,33 @@ def cli():
         source = 'file'
         filename = parsed_args.filepath
 
-    parse(source, parsed_args.input_type, filename=filename)
+    federation_config = None
+    if parsed_args.prompt_for_comparison_values:
+        federation_config = get_comparison_values()
+
+    parse(source, parsed_args.input_type, filename=filename, comparison_values=federation_config)
+
+
+def get_comparison_values():
+    federation_config = MongoFederationConfig()
+    print("Please enter the following values for comparison with\n"
+          "values in the SAML response. Press Return to skip a value.")
+    federation_config.set_value('first_name',
+                                input("Customer First Name: ") or None)
+    federation_config.set_value('last_name',
+                                input("Customer Last Name: ") or None)
+    federation_config.set_value('email',
+                                input("Customer Email Address: ") or None)
+    federation_config.set_value('issuer',
+                                input("IdP Issuer URI: ") or None)
+    federation_config.set_value('acs',
+                                input("Assertion Consumer Service URL: ") or None)
+    federation_config.set_value('audience',
+                                input("Audience URI: ") or None)
+    federation_config.set_value('encryption',
+                                input("Encryption Algorithm (""SHA-1"" or ""SHA-256""): ").lower() or None)
+
+    return federation_config
 
 
 if __name__ == '__main__':
