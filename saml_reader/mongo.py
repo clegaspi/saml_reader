@@ -1,6 +1,6 @@
 import re
 
-EMAIL_REGEX_MATCH = r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b"
+EMAIL_REGEX_MATCH = r"\b(?i)([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})\b"
 
 
 class MongoVerifier:
@@ -8,17 +8,15 @@ class MongoVerifier:
 
     """
 
-    REQUIRED_ATTRIBUTES = {
-        'firstName',
-        'lastName',
-        'email'
+    VALIDATION_REGEX_BY_ATTRIBUTE = {
+        'firstName': r"^\s*\S+.*$",
+        'lastName': r"^\s*\S+.*$",
+        'email': EMAIL_REGEX_MATCH
     }
-    ATTRIBUTE_VALIDATION_REGEX = {
-        r"^\s*\S+.*$",
-        r"^\s*\S+.*$",
-        EMAIL_REGEX_MATCH
-    }
+
     VALID_NAME_ID_FORMATS = {
+        'urn:oasis:names:tc:SAML:1.0:nameid-format:unspecified',
+        'urn:oasis:names:tc:SAML:1.0:nameid-format:emailAddress',
         'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress',
         'urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified'
     }
@@ -38,13 +36,15 @@ class MongoVerifier:
             self._errors.append("The Name ID does not appear to be an email address.")
 
         if not self.verify_name_id_format():
-            err_msg = "The Name ID format is not an acceptable format. Acceptable formats:"
+            err_msg = "The Name ID format is not an acceptable format.\n"
+            err_msg += f"SAML value: {self.get_name_id_format()}\n"
+            err_msg += "Acceptable formats:"
             for fmt in self.VALID_NAME_ID_FORMATS:
                 err_msg += f"\n - {fmt}"
             self._errors.append(err_msg)
 
         if not self.verify_name_id_and_email_are_the_same():
-            self._errors.append("The Name ID and email attributes are not the same. This is not "
+            self._errors.append("The Name ID and email attributes are not the same. This is not\n"
                                 "necessarily an error, but may indicate there is a misconfiguration.\n"
                                 "The value in Name ID will be the user's login username and the value in the\n"
                                 "email attribute will be the address where the user receives email messages.")
@@ -71,14 +71,16 @@ class MongoVerifier:
             if not self.verify_issuer(self._comparison_values.get_value('issuer')):
                 err_msg = "The Issuer URI in the SAML response does not match the specified comparison value:\n"
                 err_msg += f"SAML value: {self.get_issuer()}\n"
-                err_msg += f"specified comparison value: {self._comparison_values.get_value('issuer')}"
-                err_msg += "Generally, this means that the Atlas configuration needs to be set to match the SAML value"
+                err_msg += f"Specified comparison value: {self._comparison_values.get_value('issuer')}"
+                err_msg += "\nGenerally, this means that the Atlas configuration needs " \
+                           "to be set to match the SAML value"
                 self._errors.append(err_msg)
             if not self.verify_audience_uri(self._comparison_values.get_value('audience')):
                 err_msg = "The Audience URI in the SAML response does not match the specified comparison value:\n"
                 err_msg += f"SAML value: {self.get_audience_uri()}\n"
-                err_msg += f"specified comparison value: {self._comparison_values.get_value('audience')}"
-                err_msg += "Generally, this means that the Atlas configuration needs to be set to match the SAML value"
+                err_msg += f"Specified comparison value: {self._comparison_values.get_value('audience')}"
+                err_msg += "\nGenerally, this means that the Atlas configuration needs " \
+                           "to be set to match the SAML value"
                 self._errors.append(err_msg)
             if not self.verify_encryption_algorithm(self._comparison_values.get_value('encryption')):
                 err_msg = "The encryption algorithm for the SAML response does not " \
@@ -86,7 +88,8 @@ class MongoVerifier:
                 err_msg += f"SAML value: {self.get_encryption_algorithm().upper()}\n"
                 err_msg += f"Specified comparison value: " \
                            f"{self._comparison_values.get_value('encryption').upper().replace('-', '')}"
-                err_msg += "Generally, this means that the Atlas configuration needs to be set to match the SAML value"
+                err_msg += "\nGenerally, this means that the Atlas configuration needs " \
+                           "to be set to match the SAML value"
                 self._errors.append(err_msg)
             invalid_attribute_match = self.verify_claim_attributes_against_comparison_values()
             if invalid_attribute_match:
@@ -95,8 +98,8 @@ class MongoVerifier:
                     err_msg += f"\n - Attribute name: {attrib}"
                     err_msg += f"\n   SAML value: {self.get_claim_attributes()[attrib]}"
                     err_msg += f"\n   Specified comparison value: {self._comparison_values.get_value(attrib)}"
-                err_msg += "Generally, this means that the identity provider configuration needs to be reconfigured\n" \
-                           "to match the expected values"
+                err_msg += "\nGenerally, this means that the identity provider configuration needs\n" \
+                           "to be reconfigured to match the expected values"
                 self._errors.append(err_msg)
 
     def get_identity_provider(self):
@@ -159,17 +162,15 @@ class MongoVerifier:
 
     def verify_response_has_required_claim_attributes(self):
         attribs = self.get_claim_attributes()
-        missing_required_attributes = self.REQUIRED_ATTRIBUTES - set(attribs.keys())
+        missing_required_attributes = set(self.VALIDATION_REGEX_BY_ATTRIBUTE.keys()) - set(attribs.keys())
         return missing_required_attributes
 
     def verify_claim_attributes_values_are_valid(self):
         attribs = self.get_claim_attributes()
-        tests_by_attribute = {name: test for name, test in
-                              zip(self.REQUIRED_ATTRIBUTES, self.ATTRIBUTE_VALIDATION_REGEX)}
         bad_attributes = set()
         for name, value in attribs.items():
-            if name in tests_by_attribute:
-                if not self._matches_regex(tests_by_attribute[name], value):
+            if name in self.VALIDATION_REGEX_BY_ATTRIBUTE:
+                if not self._matches_regex(self.VALIDATION_REGEX_BY_ATTRIBUTE[name], value):
                     bad_attributes.add((name, value))
 
         return bad_attributes
@@ -184,7 +185,7 @@ class MongoVerifier:
     def verify_claim_attributes_against_comparison_values(self):
         claim_attributes = self.get_claim_attributes()
         invalid_attributes = set()
-        for attrib in self.REQUIRED_ATTRIBUTES:
+        for attrib in self.VALIDATION_REGEX_BY_ATTRIBUTE:
             if attrib in claim_attributes:
                 comparison_value = self._comparison_values.get_value(attrib)
                 if comparison_value and claim_attributes[attrib] != comparison_value:

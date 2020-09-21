@@ -157,23 +157,24 @@ def parse(source, input_type, filename=None, comparison_values=None, print_summa
 
 def display_validation_results(verifier):
     """
-        Display MongoDB Cloud-specific recommendations for identifiable issues
-        with the SAML data.
+    Display MongoDB Cloud-specific recommendations for identifiable issues
+    with the SAML data.
 
-        Args:
-            verifier (MongoVerifier): SAML and cert data
+    Args:
+        verifier (MongoVerifier): SAML and cert data
 
-        Returns:
-            None
-        """
+    Returns:
+        None
+    """
     error_messages = verifier.get_error_messages()
     if not error_messages:
         print("No errors found! :)")
+        print("------------")
         return
 
     print("-----MONGODB CLOUD VERIFICATION-----")
     for msg in error_messages:
-        print(f"------\n{msg}\n------")
+        print(f"\n{msg}\n------")
 
 
 def display_summary(verifier):
@@ -187,8 +188,7 @@ def display_summary(verifier):
         None
     """
 
-    # TODO: It might be nice to abstract this into separate functions or a class
-    #       to put all of the MongoDB Cloud-specific analysis in one place
+    print("-----SAML SUMMARY-----")
 
     if verifier.has_certificate():
         print(f"IDENTITY PROVIDER "
@@ -270,11 +270,10 @@ def cli():
     print(f"----------------------")
 
     federation_config = None
-    if 'compare' in parsed_args:
-        if parsed_args.compare is None:
-            federation_config = prompt_for_comparison_values()
-        else:
-            federation_config = parse_comparison_values_from_json(parsed_args.compare)
+    if parsed_args.compare is None:
+        federation_config = prompt_for_comparison_values()
+    else:
+        federation_config = parse_comparison_values_from_json(parsed_args.compare)
 
     parse(source, parsed_args.input_type,
           filename=filename, comparison_values=federation_config, print_summary=parsed_args.summary)

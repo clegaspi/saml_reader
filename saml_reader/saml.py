@@ -128,7 +128,7 @@ class SamlParser(OneLogin_Saml2_Response):
         Returns:
             (basestring) Value of encryption algorithm
         Raises:
-            (ValueError) Raised when the Assertion Consumer Service
+            (ValueError) Raised when the encryption algorithm
              entry is not found in the data
         """
         result = self._OneLogin_Saml2_Response__query_assertion(
