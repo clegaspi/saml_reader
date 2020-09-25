@@ -31,6 +31,10 @@ class MongoVerifier:
         'email'
     }
 
+    OPTIONAL_CLAIMS = {
+        # There are no currently supported optional claims
+    }
+
     def __init__(self, saml, cert=None, comparison_values=None):
         self._saml = saml
         self._cert = cert
@@ -42,39 +46,27 @@ class MongoVerifier:
         return self._cert is not None
 
     def validate_configuration(self):
-        if not self.verify_name_id_pattern():
-            self._errors.append(f"The Name ID does not appear to be an email address.\n"
-                                f"Name ID: {self.get_name_id()}")
+        is_problem_with_name_id = False
+        if not self.verify_name_id_exists():
+            is_problem_with_name_id = True
+            self._errors.append(f"The Name ID is missing from the SAML Subject.\n"
+                                f"Please be sure the customer's identity provider is\n"
+                                f"emitting this attribute (it is not emitted by default for Microsoft ADFS)")
 
-        if not self.verify_name_id_format():
-            err_msg = "The Name ID format is not an acceptable format.\n"
-            err_msg += f"SAML value: {self.get_name_id_format()}\n"
-            err_msg += "Acceptable formats:"
-            for fmt in self.VALID_NAME_ID_FORMATS:
-                err_msg += f"\n - {fmt}"
-            self._errors.append(err_msg)
+        if not is_problem_with_name_id:
+            if not self.verify_name_id_pattern():
+                is_problem_with_name_id = True
+                self._errors.append(f"The Name ID does not appear to be an email address.\n"
+                                    f"Name ID: {self.get_name_id()}")
 
-        if not self.verify_name_id_and_email_are_the_same():
-            self._errors.append("The Name ID and email attributes are not the same. This is not\n"
-                                "necessarily an error, but may indicate there is a misconfiguration.\n"
-                                "The value in Name ID will be the user's login username and the value in the\n"
-                                "email attribute will be the address where the user receives email messages.")
-
-        if not self.verify_issuer_pattern():
-            self._errors.append(f"The Issuer URI does not match the anticipated pattern.\n"
-                                f"Issuer URI: {self.get_issuer()}")
-
-        if not self.verify_audience_uri_pattern():
-            self._errors.append(f"The Audience URI does not match the anticipated pattern.\n"
-                                f"Audience URI: {self.get_audience_uri()}")
-
-        if not self.verify_assertion_consumer_service_url_pattern():
-            self._errors.append(f"The Assertion Consumer Service URL does not match the anticipated pattern.\n"
-                                f"ACS URL: {self.get_assertion_consumer_service_url()}")
-
-        if not self.verify_encryption_algorithm_pattern():
-            self._errors.append(f"The encryption algorithm does not match the anticipated pattern.\n"
-                                f"Encryption Algorithm: {self.get_encryption_algorithm()}")
+            if not self.verify_name_id_format():
+                is_problem_with_name_id = True
+                err_msg = "The Name ID format is not an acceptable format.\n"
+                err_msg += f"SAML value: {self.get_name_id_format()}\n"
+                err_msg += "Acceptable formats:"
+                for fmt in self.VALID_NAME_ID_FORMATS:
+                    err_msg += f"\n - {fmt}"
+                self._errors.append(err_msg)
 
         missing_attributes = self.verify_response_has_required_claim_attributes()
         if missing_attributes:
@@ -94,9 +86,34 @@ class MongoVerifier:
                 err_msg += f"\n - {name} ({value})"
             self._errors.append(err_msg)
 
+        if not is_problem_with_name_id and \
+                'email' not in missing_attributes and \
+                'email' not in invalid_attributes:
+            if not self.verify_name_id_and_email_are_the_same():
+                self._errors.append("The Name ID and email attributes are not the same. This is not\n"
+                                    "necessarily an error, but may indicate there is a misconfiguration.\n"
+                                    "The value in Name ID will be the user's login username and the value in the\n"
+                                    "email attribute will be the address where the user receives email messages.")
+
+        if not self.verify_issuer_pattern():
+            self._errors.append(f"The Issuer URI does not match the anticipated pattern.\n"
+                                f"Issuer URI: {self.get_issuer()}")
+
+        if not self.verify_audience_uri_pattern():
+            self._errors.append(f"The Audience URI does not match the anticipated pattern.\n"
+                                f"Audience URI: {self.get_audience_uri()}")
+
+        if not self.verify_assertion_consumer_service_url_pattern():
+            self._errors.append(f"The Assertion Consumer Service URL does not match the anticipated pattern.\n"
+                                f"ACS URL: {self.get_assertion_consumer_service_url()}")
+
+        if not self.verify_encryption_algorithm_pattern():
+            self._errors.append(f"The encryption algorithm does not match the anticipated pattern.\n"
+                                f"Encryption Algorithm: {self.get_encryption_algorithm()}")
+
         if self._comparison_values:
             value = self._comparison_values.get_value('email')
-            if value and not self.verify_name_id(value):
+            if value and not is_problem_with_name_id and not self.verify_name_id(value):
                 err_msg = "The Name ID does not match the provided e-mail value:\n"
                 err_msg += f"Name ID value: {self.get_name_id()}\n"
                 err_msg += f"Specified email value: {self._comparison_values.get_value('email')}"
@@ -206,10 +223,17 @@ class MongoVerifier:
                                    self.get_encryption_algorithm())
 
     def get_name_id(self):
-        return self._saml.get_subject_nameid()
+        try:
+            name_id = self.get_name_id()
+        except ValueError:
+            return None
+        return name_id
 
     def verify_name_id(self, expected_value):
         return self.get_name_id() == expected_value
+
+    def verify_name_id_exists(self):
+        return self.get_name_id() is not None
 
     def verify_name_id_pattern(self):
         return self._matches_regex(EMAIL_REGEX_MATCH, self.get_name_id())
@@ -255,7 +279,7 @@ class MongoVerifier:
     def verify_claim_attributes_against_comparison_values(self):
         claim_attributes = self.get_claim_attributes()
         invalid_attributes = set()
-        for attrib in VALIDATION_REGEX_BY_ATTRIB:
+        for attrib in set.union(self.REQUIRED_CLAIMS, self.OPTIONAL_CLAIMS):
             if attrib in claim_attributes:
                 comparison_value = self._comparison_values.get_value(attrib)
                 if comparison_value and claim_attributes[attrib] != comparison_value:
