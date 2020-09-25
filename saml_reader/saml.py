@@ -136,6 +136,8 @@ class SamlParser(OneLogin_Saml2_Response):
         if result:
             # TODO: Change to .get('Algorithm') if changing function to soft fail
             algorithm_uri = result[0].attrib['Algorithm']
-            algorithm = re.findall(r"(sha(?:1|256))", algorithm_uri)[0]
-            return algorithm
-        raise ValueError("Did not find Name ID Format")
+            algorithm = re.findall(r"sha(1|256)", algorithm_uri)
+            if not algorithm:
+                return ValueError(f"Unexpected algorithm value: {algorithm_uri}")
+            return "SHA" + algorithm[0]
+        raise ValueError("Did not find algorithm value")

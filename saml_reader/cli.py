@@ -7,6 +7,7 @@ Attributes:
 """
 import sys
 import json
+import re
 
 import pyperclip
 import argparse
@@ -88,7 +89,7 @@ def parse_raw_data(input_type, data):
     raise ValueError(f"Invalid data type specified: {input_type}")
 
 
-def parse(source, input_type, filename=None, comparison_values=None, print_summary=False):
+def parse_data(source, input_type, filename=None):
     """
     Parses input for SAML response and displays summary and analysis
 
@@ -147,12 +148,7 @@ def parse(source, input_type, filename=None, comparison_values=None, print_summa
         print("Could not locate certificate. Identity provider info will not be available.")
         cert = None
 
-    verifier = MongoVerifier(saml, cert, comparison_values)
-    verifier.validate_configuration()
-
-    display_validation_results(verifier)
-    if print_summary:
-        display_summary(verifier)
+    return saml, cert
 
 
 def display_validation_results(verifier):
@@ -248,7 +244,7 @@ def cli():
                         help='type of data being read in (default: xml)')
     parser.add_argument('--compare',
                         dest='compare', action='store', required=False,
-                        default=None, nargs='?',
+                        nargs='*',
                         help='enter values for comparison (no args = prompt, 1 arg = JSON file)')
     parser.add_argument('--summary',
                         dest='summary', action='store_true', required=False,
@@ -270,13 +266,20 @@ def cli():
     print(f"----------------------")
 
     federation_config = None
-    if parsed_args.compare is None:
-        federation_config = prompt_for_comparison_values()
-    else:
-        federation_config = parse_comparison_values_from_json(parsed_args.compare)
+    if parsed_args.compare is not None:
+        if len(parsed_args.compare) == 0:
+            federation_config = prompt_for_comparison_values()
+        else:
+            federation_config = parse_comparison_values_from_json(parsed_args.compare[0])
 
-    parse(source, parsed_args.input_type,
-          filename=filename, comparison_values=federation_config, print_summary=parsed_args.summary)
+    saml, cert = parse_data(source, parsed_args.input_type, filename=filename)
+
+    verifier = MongoVerifier(saml, cert, comparison_values=federation_config)
+    verifier.validate_configuration()
+
+    display_validation_results(verifier)
+    if parsed_args.summary:
+        display_summary(verifier)
 
 
 def prompt_for_comparison_values():
@@ -295,8 +298,19 @@ def prompt_for_comparison_values():
                                 input("Assertion Consumer Service URL: ") or None)
     federation_config.set_value('audience',
                                 input("Audience URI: ") or None)
-    federation_config.set_value('encryption',
-                                input("Encryption Algorithm (""SHA1"" or ""SHA256""): ").lower() or None)
+    encryption = None
+    while not encryption:
+        encryption_string = input("Encryption Algorithm (""SHA1"" or ""SHA256""): ")
+        if encryption_string == "":
+            break
+        encryption = re.findall(r'(?i)SHA-?(1|256)', encryption_string)
+        if not encryption:
+            print("Invalid encryption value. Must be ""SHA1"" or ""SHA256""")
+        else:
+            # This is meant to convert "sha-256" to "SHA256" for consistency
+            encryption = encryption[0].upper().replace("-", "")
+    federation_config.set_value('encryption', encryption)
+    print("------------")
 
     return federation_config
 
@@ -304,6 +318,10 @@ def prompt_for_comparison_values():
 def parse_comparison_values_from_json(filename):
     with open(filename, 'r') as f:
         comparison_values = json.load(f)
+
+    if 'encryption' in comparison_values:
+        # This is meant to convert "sha-256" to "SHA256" for consistency
+        comparison_values['encryption'] = comparison_values['encryption'].upper().replace("-", "")
     federation_config = MongoFederationConfig(**comparison_values)
     return federation_config
 
