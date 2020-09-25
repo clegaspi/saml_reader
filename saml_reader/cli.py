@@ -260,18 +260,24 @@ def cli():
 
     print(f"SAML READER")
     print(f"----------------------")
+    print(f"Parsing SAML data...")
+
+    # Parse saml data before prompting for input values to not risk clipboard being erased
+    saml, cert = parse_saml_data(source, parsed_args.input_type, filename=filename)
+
+    if not saml:
+        return
+
+    print(f"Done")
 
     federation_config = None
     if parsed_args.compare is not None:
         if len(parsed_args.compare) == 0:
             federation_config = prompt_for_comparison_values()
         else:
+            print("Parsing comparison values...")
             federation_config = parse_comparison_values_from_json(parsed_args.compare[0])
-
-    saml, cert = parse_saml_data(source, parsed_args.input_type, filename=filename)
-
-    if not saml:
-        return
+            print("Done")
 
     verifier = MongoVerifier(saml, cert, comparison_values=federation_config)
     verifier.validate_configuration()
