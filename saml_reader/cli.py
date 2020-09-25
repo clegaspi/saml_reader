@@ -102,9 +102,6 @@ def parse_data(source, input_type, filename=None):
             `'base64'`, `'xml'`, or `'har'`
         filename (basestring, Optional): path of file to read, only required
             if `source` is `'file'`
-        comparison_values (MongoFederationConfig, Optional): federation
-            configuration options to compare with those received in SAML response
-        print_summary (bool, Optional): print full summary of SAML data if True (default: False)
 
     Returns:
         None
