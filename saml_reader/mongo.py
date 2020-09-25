@@ -224,7 +224,7 @@ class MongoVerifier:
 
     def get_name_id(self):
         try:
-            name_id = self.get_name_id()
+            name_id = self._saml.get_subject_nameid()
         except ValueError:
             return None
         return name_id
@@ -246,7 +246,11 @@ class MongoVerifier:
         return False
 
     def get_name_id_format(self):
-        return self._saml.get_subject_nameid_format()
+        try:
+            name_id_format = self._saml.get_subject_nameid_format()
+        except ValueError:
+            return None
+        return name_id_format
 
     def verify_name_id_format(self):
         return self.get_name_id_format() in self.VALID_NAME_ID_FORMATS

@@ -128,7 +128,7 @@ def parse_saml_data(source, input_type, filename=None):
         print("SAML response is encrypted. Cannot parse.\n"
               "Advise customer to update their identity provider "
               "to send an unencrypted SAML response.")
-        return
+        return None, None
 
     if not saml.validate_num_assertions():
         if bytes("AuthnRequest", "utf-8") in saml.response:
@@ -136,10 +136,9 @@ def parse_saml_data(source, input_type, filename=None):
                   "Please ask the customer for the SAML response instead of the request.")
         else:
             print("The SAML data does not contain any response data.")
-        return
+        return None, None
 
     try:
-        # TODO: Maybe move this to the display() section or wherever it ends up in a refactor
         cert = Certificate(saml.get_certificate())
     except ValueError:
         print("Could not locate certificate. Identity provider info will not be available.")
@@ -201,8 +200,8 @@ def display_summary(verifier):
           f"\n{verifier.get_encryption_algorithm().upper()}")
     print("---")
     print(f"NAME ID:"
-          f"\nValue: {verifier.get_name_id()}"
-          f"\nFormat: {verifier.get_name_id_format()}")
+          f"\nValue: {verifier.get_name_id() or '(this value is missing)'}"
+          f"\nFormat: {verifier.get_name_id_format() or '(this value is missing)'}")
     print("---")
 
     # Checking for the required attributes for MongoDB Cloud
@@ -270,6 +269,9 @@ def cli():
             federation_config = parse_comparison_values_from_json(parsed_args.compare[0])
 
     saml, cert = parse_saml_data(source, parsed_args.input_type, filename=filename)
+
+    if not saml:
+        return
 
     verifier = MongoVerifier(saml, cert, comparison_values=federation_config)
     verifier.validate_configuration()
