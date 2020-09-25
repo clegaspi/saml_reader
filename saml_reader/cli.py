@@ -89,7 +89,7 @@ def parse_raw_data(input_type, data):
     raise ValueError(f"Invalid data type specified: {input_type}")
 
 
-def parse_data(source, input_type, filename=None):
+def parse_saml_data(source, input_type, filename=None):
     """
     Parses input for SAML response and displays summary and analysis
 
@@ -269,7 +269,7 @@ def cli():
         else:
             federation_config = parse_comparison_values_from_json(parsed_args.compare[0])
 
-    saml, cert = parse_data(source, parsed_args.input_type, filename=filename)
+    saml, cert = parse_saml_data(source, parsed_args.input_type, filename=filename)
 
     verifier = MongoVerifier(saml, cert, comparison_values=federation_config)
     verifier.validate_configuration()
