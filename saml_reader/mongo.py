@@ -149,6 +149,10 @@ class MongoVerifier:
                 err_msg += "\nGenerally, this means that the identity provider configuration needs\n" \
                            "to be reconfigured to match the expected values"
                 self._errors.append(err_msg)
+        self._validated = True
+
+    def validated(self):
+        return self._validated
 
     def get_identity_provider(self):
         if self._cert:
