@@ -91,6 +91,7 @@ def cli():
             federation_config = parse_comparison_values_from_json(parsed_args.compare[0])
             print("Done")
 
+    print("------------")
     verifier = MongoVerifier(saml_parser.get_saml(),
                              saml_parser.get_certificate(),
                              comparison_values=federation_config)
