@@ -46,9 +46,16 @@ def cli():
     parser.add_argument('--summary',
                         dest='summary', action='store_true', required=False,
                         help='displays full summary of the parsed SAML data')
+    parser.add_argument('--summary-only',
+                        dest='summary_only', action='store_true', required=False,
+                        help='do not run MongoDB-specific validation, only output summary')
     parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
 
     parsed_args = parser.parse_args(sys.argv[1:])
+
+    if parsed_args.no_validation and parsed_args.compare is not None:
+        print("ERROR: Cannot specify --compare and --summary-only")
+        return
 
     source = 'stdin'
     filename = None
@@ -87,9 +94,12 @@ def cli():
     verifier = MongoVerifier(saml_parser.get_saml(),
                              saml_parser.get_certificate(),
                              comparison_values=federation_config)
-    verifier.validate_configuration()
-    display_validation_results(verifier)
-    if parsed_args.summary:
+
+    if not parsed_args.summary_only:
+        verifier.validate_configuration()
+        display_validation_results(verifier)
+
+    if parsed_args.summary or parsed_args.summary_only:
         display_summary(verifier)
 
 
