@@ -6,7 +6,7 @@ Please **DO NOT** add any personally identifiable information (PII) when reporti
 This means **DO NOT** upload any SAML data, even if it is yours. I don't want to be responsible
 for it. :)
 
-### What is this tool?
+## What is this tool?
 This tool parses SAML responses, gathering relevant info for diagnosing issues with federated authentication for Cloud.
 There is some extra checks for MDB Cloud, but not many so far.
 
@@ -48,6 +48,7 @@ a base64-encoded string, or it can be extracted directly from a HAR file dump.
 The data can be input from a file, from the system clipboard,
 or from a Unix pipe.
 
+## Data Sources
 #### Reading from a file with different types
 
 ```bash
@@ -78,7 +79,59 @@ cat file.har | saml_reader --type har
 
 You can specify `saml_reader --stdin` but it is not required. 
 
-### Reporting issues
+## Other command line options
+
+By default, the application will only output the results of validation
+tests. There are some extra options to expand the tests and the information
+that is output by the program.
+
+### `--summary`
+
+This flag will print a full summary of key parameters pulled directly from the SAML 
+response and certificate.
+
+### `--summary-only`
+
+This will only print the summary and skip any validation tests. Cannot be specified
+with `--compare`
+
+### `--compare`
+
+This will allow the user to input expected values to compare with the SAML response.
+SAML Reader will prompt for each value in the terminal. Values can
+be skipped by pressing Enter without inputting a value. Example:
+
+```
+Customer First Name: Sam
+Customer Last Name: Ell
+Customer Email Address: sam.ell@mydomain.com
+IdP Issuer URI: Issuer_URI_Here
+MongoDB Assertion Consumer Service URL: https://auth.mongodb.com/sso/saml2/01234abcDE56789ZyXwv
+MongoDB Audience URI: https://www.okta.com/saml2/service-provider/abcdefghijklmnopqrst
+Encryption Algorithm (SHA1 or SHA256): SHA256
+```
+All values will be validated to see if they match expected values for MongoDB Cloud.
+If an attribute does not pass validation, you will be asked to re-enter it or skip it.
+
+Alternatively, this option will accept a single argument as a path to a JSON file containing the
+comparison values in the format:
+
+```javascript
+{
+  "firstName": "Sam",
+  "lastName": "Ell",
+  "email": "sam.ell@mydomain.com",
+  "issuer": "Issuer URI here",
+  "acs": "Assertion Consumer Service URL here",
+  "audience": "Audience URI here",
+  "encryption": "Must be 'SHA1' or 'SHA256'"
+} 
+```
+
+Any value can be omitted or substituted with `null` to be ignored. 
+An empty string (`""`) will be interpreted as an invalid value.
+
+## Reporting issues
 
 Because this tool inherently deals with personally identifiable information (PII)
 and security information, this bears repeating...
@@ -93,7 +146,7 @@ this tool. This tool is in its infancy, so it's sure to have issues and non-grac
 handling of errors. To report an issue, please open an issue on this repository,
 describing the issue you are experiencing and one of the maintainers will look into the issue.
 
-### Contributing
+## Contributing
 
 I do not have any specific requirements for contributing at this time, other than
 that I am using Google-style docstrings. Please feel free to open a pull request!

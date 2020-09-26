@@ -1,205 +1,16 @@
 """
-Command line interface for SAML Reader parser. This is where MongoDB Cloud-specific
-interpretation of the SAML data is done and returned to the user.
-
-Attributes:
-    REQUIRED_ATTRIBUTES (set): set of strings of the required Atlas attributes in the
-        SAML response
-    VALID_INPUT_TYPES (set): set of strings of the valid input types for this tool
+Command line interface for SAML Reader parser. These functions handle all
+user interaction/display.
 """
 import sys
+import json
+import re
 
-import pyperclip
 import argparse
 
-from saml_reader.cert import Certificate
-from saml_reader.saml import SamlParser, SamlResponseEncryptedError
-from saml_reader.har import HarParser
+from saml_reader.text_reader import TextReader
+from saml_reader.mongo import MongoFederationConfig, MongoVerifier
 from saml_reader import __version__
-
-
-REQUIRED_ATTRIBUTES = {'firstName', 'lastName', 'email'}
-VALID_INPUT_TYPES = {'base64', 'xml', 'har'}
-
-
-def read_file(filename):
-    """
-    Reads data from a file
-
-    Args:
-        filename (basestring): path of file to read
-
-    Returns:
-        (basestring) contents of file
-
-    Raises:
-        (FileNotFoundError) if the file does not exist or cannot be read
-    """
-    try:
-        with open(filename, 'r') as f:
-            data = f.read()
-    except FileNotFoundError:
-        raise FileNotFoundError(f"Cannot find file specified: {filename}")
-    return data
-
-
-def read_clipboard():
-    """
-    Reads data from the system clipboard
-
-    Returns:
-        (basestring) contents of clipboard
-    """
-    data = pyperclip.paste()
-    return data
-
-
-def read_stdin():
-    """
-    Reads contents of stdin (standard in) to get piped data
-
-    Returns:
-        (basestring) concatenated contents of stdin
-    """
-    data = "".join(sys.stdin.readlines())
-    return data
-
-
-def parse_raw_data(input_type, data):
-    """
-    Parse various data types to return SAML response
-
-    Args:
-        input_type (basestring): data type of `data`, must be
-            `'base64'`, `'xml'`, or `'har'`
-        data (basestring): data to parse for SAML response
-
-    Returns:
-        (SamlParser) Object containing SAML data
-
-    Raises:
-        (ValueError) if an invalid `input_type` is specified
-    """
-    if input_type == 'base64':
-        return SamlParser(data)
-    if input_type == 'xml':
-        return SamlParser.from_xml(data)
-    if input_type == 'har':
-        return SamlParser(HarParser(data).parse())
-    raise ValueError(f"Invalid data type specified: {input_type}")
-
-
-def parse(source, input_type, filename=None):
-    """
-    Parses input for SAML response and displays summary and analysis
-
-    Args:
-        source (basestring): type of input to read, must be one of:
-            - `'clip'`: read from the system clipboard
-            - `'file'`: read from a file, must specify path in `'filename'`
-            - `'stdin'`: read from pipe via stdin (standard in)
-        input_type (basestring): data type of `data`, must be
-            `'base64'`, `'xml'`, or `'har'`
-        filename (basestring, Optional): path of file to read, only required
-            if `source` is `'file'`
-
-    Returns:
-        None
-
-    Raises:
-        (ValueError) if the `source` or the `input_type` is invalid
-    """
-    input_type = input_type.lower()
-    if input_type not in VALID_INPUT_TYPES:
-        raise ValueError(f"Invalid input type: {input_type}")
-
-    if source == 'clip':
-        raw_data = read_clipboard()
-    elif source == 'stdin':
-        raw_data = read_stdin()
-    elif source == 'file':
-        raw_data = read_file(filename)
-    else:
-        raise ValueError(f"Invalid source: {source}")
-
-    try:
-        saml = parse_raw_data(input_type, raw_data)
-    except SamlResponseEncryptedError:
-        print("SAML response is encrypted. Cannot parse.\n"
-              "Advise customer to update their identity provider "
-              "to send an unencrypted SAML response.")
-        return
-
-    if not saml.validate_num_assertions():
-        if bytes("AuthnRequest", "utf-8") in saml.response:
-            print("The input data appears to be a SAML request instead of a SAML response.\n"
-                  "Please ask the customer for the SAML response instead of the request.")
-        else:
-            print("The SAML data does not contain any response data.")
-        return
-
-    try:
-        # TODO: Maybe move this to the display() section or wherever it ends up in a refactor
-        cert = Certificate(saml.get_certificate())
-    except ValueError:
-        print("Could not locate certificate. Identity provider info will not be available.")
-        cert = None
-    display(saml, cert)
-
-
-def display(saml, cert):
-    """
-    Display parsed SAML data and MongoDB Cloud-specific recommendations for identifiable issues
-    with the SAML data.
-
-    Args:
-        saml (SamlParser): SAML data
-        cert (Certificate, NoneType): Certificate data. Can be `None` if no certificate info is
-            available in the SAML response
-
-    Returns:
-        None
-    """
-
-    # TODO: It might be nice to abstract this into separate functions or a class
-    #       to put all of the MongoDB Cloud-specific analysis in one place
-    print(f"SAML READER")
-    print(f"----------------------")
-    if cert is not None:
-        print(f"IDENTITY PROVIDER "
-              f"(from certificate):"
-              f"\n{cert.get_organization_name() or cert.get_common_name()}")
-        print("---")
-    print(f"ISSUER URI:"
-          f"\n{saml.get_issuers()[0]}")
-    print("---")
-    print(f"AUDIENCE URI:"
-          f"\n{saml.get_audiences()[0]}")
-    print("---")
-    print(f"ASSERTION CONSUMER SERVICE URL:"
-          f"\n{saml.get_acs()}")
-    print("---")
-    print(f"NAME ID:"
-          f"\nValue (this should be an e-mail): {saml.get_subject_nameid()}"
-          f"\nFormat (this should end in 'unspecified' or 'emailAddress'): "
-          f"{saml.get_subject_nameid_format()}")
-    print("---")
-
-    # Checking for the required attributes for MongoDB Cloud
-    print(f"ATTRIBUTES:")
-    req_attribs_in_assertion = set()
-    for name, value in saml.get_attributes().items():
-        print(f"Name: {name}")
-        print(f"Value: {value[0]}")
-        print("-")
-        if name in REQUIRED_ATTRIBUTES:
-            req_attribs_in_assertion.add(name)
-
-    if len(req_attribs_in_assertion) != len(REQUIRED_ATTRIBUTES):
-        print(f"This SAML response is missing the following required attribute(s), "
-              f"or they are spelled incorrectly:")
-        for attribute in REQUIRED_ATTRIBUTES - req_attribs_in_assertion:
-            print(attribute)
 
 
 def cli():
@@ -228,9 +39,23 @@ def cli():
                         dest='input_type', action='store', required=False,
                         choices=['xml', 'base64', 'har'], default='xml',
                         help='type of data being read in (default: xml)')
+    parser.add_argument('--compare',
+                        dest='compare', action='store', required=False,
+                        nargs='*',
+                        help='enter values for comparison (no args = prompt, 1 arg = JSON file)')
+    parser.add_argument('--summary',
+                        dest='summary', action='store_true', required=False,
+                        help='displays full summary of the parsed SAML data')
+    parser.add_argument('--summary-only',
+                        dest='summary_only', action='store_true', required=False,
+                        help='do not run MongoDB-specific validation, only output summary')
     parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
 
     parsed_args = parser.parse_args(sys.argv[1:])
+
+    if parsed_args.summary_only and parsed_args.compare is not None:
+        print("ERROR: Cannot specify --compare and --summary-only")
+        return
 
     source = 'stdin'
     filename = None
@@ -241,7 +66,160 @@ def cli():
         source = 'file'
         filename = parsed_args.filepath
 
-    parse(source, parsed_args.input_type, filename=filename)
+    print(f"SAML READER")
+    print(f"----------------------")
+    print(f"Parsing SAML data...")
+
+    # Parse saml data before prompting for input values to not risk clipboard being erased
+    saml_parser = TextReader(source, parsed_args.input_type, filename=filename)
+
+    if not saml_parser.cert_is_valid():
+        for msg in saml_parser.get_errors():
+            print(msg)
+
+        if not saml_parser.saml_is_valid():
+            return
+
+    print(f"Done")
+
+    federation_config = None
+    if parsed_args.compare is not None:
+        if len(parsed_args.compare) == 0:
+            federation_config = prompt_for_comparison_values()
+        else:
+            print("Parsing comparison values...")
+            federation_config = parse_comparison_values_from_json(parsed_args.compare[0])
+            print("Done")
+
+    verifier = MongoVerifier(saml_parser.get_saml(),
+                             saml_parser.get_certificate(),
+                             comparison_values=federation_config)
+
+    if not parsed_args.summary_only:
+        verifier.validate_configuration()
+        display_validation_results(verifier)
+
+    if parsed_args.summary or parsed_args.summary_only:
+        display_summary(verifier)
+
+
+def display_validation_results(verifier):
+    """
+    Display MongoDB Cloud-specific recommendations for identifiable issues
+    with the SAML data.
+
+    Args:
+        verifier (MongoVerifier): SAML and cert data
+
+    Returns:
+        None
+    """
+    error_messages = verifier.get_error_messages()
+    if not error_messages:
+        print("No errors found! :)")
+        print("------------")
+        return
+
+    print("-----MONGODB CLOUD VERIFICATION-----")
+    for msg in error_messages:
+        print(f"\n{msg}\n------")
+
+
+def display_summary(verifier):
+    """
+    Display summary of parsed SAML data
+
+    Args:
+        verifier (MongoVerifier): SAML and cert data
+
+    Returns:
+        None
+    """
+
+    print("\n-----SAML SUMMARY-----")
+
+    if verifier.has_certificate():
+        print(f"IDENTITY PROVIDER "
+              f"(from certificate):"
+              f"\n{verifier.get_identity_provider()}")
+        print("---")
+    print(f"ISSUER URI:"
+          f"\n{verifier.get_issuer()}")
+    print("---")
+    print(f"AUDIENCE URI:"
+          f"\n{verifier.get_audience_uri()}")
+    print("---")
+    print(f"ASSERTION CONSUMER SERVICE URL:"
+          f"\n{verifier.get_assertion_consumer_service_url()}")
+    print("---")
+    print(f"ENCRYPTION ALGORITHM:"
+          f"\n{verifier.get_encryption_algorithm().upper()}")
+    print("---")
+    print(f"NAME ID:"
+          f"\nValue: {verifier.get_name_id() or '(this value is missing)'}"
+          f"\nFormat: {verifier.get_name_id_format() or '(this value is missing)'}")
+    print("---")
+
+    # Checking for the required attributes for MongoDB Cloud
+    print(f"ATTRIBUTES:")
+    for name, value in verifier.get_claim_attributes().items():
+        print(f"Name: {name}")
+        print(f"Value: {value}")
+        print("-")
+
+
+def prompt_for_comparison_values():
+    federation_config = MongoFederationConfig()
+    print("Please enter the following values for comparison with\n"
+          "values in the SAML response. Press Return to skip a value.")
+
+    prompt_by_value_name = [
+        ('firstName', "Customer First Name: "),
+        ('lastName', "Customer Last Name: "),
+        ('email', "Customer Email Address: "),
+        ('issuer', "IdP Issuer URI: "),
+        ('acs', "MongoDB Assertion Consumer Service URL: "),
+        ('audience', "MongoDB Audience URI: ")
+    ]
+
+    for name, prompt in prompt_by_value_name:
+        valid_value = False
+        while not valid_value:
+            try:
+                federation_config.set_value(name, input(prompt) or None)
+                valid_value = True
+            except ValueError as e:
+                if e.args[0].endswith("did not pass input validation"):
+                    print(f"Attribute did not pass validation. Try again or skip the value.")
+                else:
+                    raise e
+
+    encryption = None
+    while not encryption:
+        encryption_string = input("Encryption Algorithm (""SHA1"" or ""SHA256""): ")
+        if encryption_string == "":
+            break
+        encryption = re.findall(r'(?i)SHA-?(1|256)', encryption_string)
+        if not encryption:
+            print("Invalid encryption value. Must be ""SHA1"" or ""SHA256""")
+        else:
+            # This is meant to convert "sha-256" to "SHA256" in case someone entered that
+            encryption = "SHA" + encryption[0]
+    federation_config.set_value('encryption', encryption)
+    print("------------")
+
+    return federation_config
+
+
+def parse_comparison_values_from_json(filename):
+    with open(filename, 'r') as f:
+        comparison_values = json.load(f)
+
+    if 'encryption' in comparison_values:
+        # This is meant to convert "sha-256" to "SHA256" for consistency
+        comparison_values['encryption'] = comparison_values['encryption'].upper().replace("-", "")
+    federation_config = MongoFederationConfig(**comparison_values)
+    return federation_config
 
 
 if __name__ == '__main__':
