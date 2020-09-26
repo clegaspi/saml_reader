@@ -53,7 +53,7 @@ def cli():
 
     parsed_args = parser.parse_args(sys.argv[1:])
 
-    if parsed_args.no_validation and parsed_args.compare is not None:
+    if parsed_args.summary_only and parsed_args.compare is not None:
         print("ERROR: Cannot specify --compare and --summary-only")
         return
 
@@ -172,18 +172,28 @@ def prompt_for_comparison_values():
     federation_config = MongoFederationConfig()
     print("Please enter the following values for comparison with\n"
           "values in the SAML response. Press Return to skip a value.")
-    federation_config.set_value('firstName',
-                                input("Customer First Name: ") or None)
-    federation_config.set_value('lastName',
-                                input("Customer Last Name: ") or None)
-    federation_config.set_value('email',
-                                input("Customer Email Address: ") or None)
-    federation_config.set_value('issuer',
-                                input("IdP Issuer URI: ") or None)
-    federation_config.set_value('acs',
-                                input("Assertion Consumer Service URL: ") or None)
-    federation_config.set_value('audience',
-                                input("Audience URI: ") or None)
+
+    prompt_by_value_name = [
+        ('firstName', "Customer First Name: "),
+        ('lastName', "Customer Last Name: "),
+        ('email', "Customer Email Address: "),
+        ('issuer', "IdP Issuer URI: "),
+        ('acs', "MongoDB Assertion Consumer Service URL: "),
+        ('audience', "MongoDB Audience URI: ")
+    ]
+
+    for name, prompt in prompt_by_value_name:
+        valid_value = False
+        while not valid_value:
+            try:
+                federation_config.set_value(name, input(prompt))
+                valid_value = True
+            except ValueError as e:
+                if e.args[0].endswith("did not pass input validation"):
+                    print(f"Attribute did not pass validation. Try again or skip the value.")
+                else:
+                    raise e
+
     encryption = None
     while not encryption:
         encryption_string = input("Encryption Algorithm (""SHA1"" or ""SHA256""): ")
