@@ -133,6 +133,12 @@ class SamlParser(OneLogin_Saml2_Response):
         """
         result = self._OneLogin_Saml2_Response__query_assertion(
             '/ds:Signature/ds:SignedInfo/ds:SignatureMethod')
+
+        # If the encryption algorithm isn't in the specific assertion, check the outer section
+        if not result:
+            result = self._OneLogin_Saml2_Response__query(
+                '/samlp:Response/ds:Signature/ds:SignedInfo/ds:SignatureMethod')
+
         if result:
             # TODO: Change to .get('Algorithm') if changing function to soft fail
             algorithm_uri = result[0].attrib['Algorithm']
