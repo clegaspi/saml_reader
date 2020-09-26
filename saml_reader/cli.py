@@ -169,6 +169,12 @@ def display_summary(verifier):
 
 
 def prompt_for_comparison_values():
+    """
+    Prompt user to enter values for comparing with the SAML response data
+
+    Returns:
+        (MongoFederationConfig) object containing validated comparison values
+    """
     federation_config = MongoFederationConfig()
     print("Please enter the following values for comparison with\n"
           "values in the SAML response. Press Return to skip a value.")
@@ -212,6 +218,16 @@ def prompt_for_comparison_values():
 
 
 def parse_comparison_values_from_json(filename):
+    """
+    Read comparison values from JSON file and validate
+
+    Args:
+        filename (basestring): path to JSON-formatted file with comparison values
+            See `saml_reader.mongo.VALIDATION_REGEX_BY_ATTRIB` for valid fields.
+
+    Returns:
+        (MongoFederationConfig) object containing validated comparison values
+    """
     with open(filename, 'r') as f:
         comparison_values = json.load(f)
 
