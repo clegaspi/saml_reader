@@ -10,7 +10,7 @@ from saml_reader.saml import SamlParser, SamlResponseEncryptedError
 from saml_reader.har import HarParser
 
 
-class Parser:
+class TextReader:
     """
     Parses raw SAML and certificate data from various input sources
 

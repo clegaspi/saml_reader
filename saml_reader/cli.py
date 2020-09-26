@@ -8,7 +8,7 @@ import re
 
 import argparse
 
-from saml_reader.parser import Parser
+from saml_reader.text_reader import TextReader
 from saml_reader.mongo import MongoFederationConfig, MongoVerifier
 from saml_reader import __version__
 
@@ -64,7 +64,7 @@ def cli():
     print(f"Parsing SAML data...")
 
     # Parse saml data before prompting for input values to not risk clipboard being erased
-    saml_parser = Parser(source, parsed_args.input_type, filename=filename)
+    saml_parser = TextReader(source, parsed_args.input_type, filename=filename)
 
     if not saml_parser.cert_is_valid():
         for msg in saml_parser.get_errors():
