@@ -99,8 +99,17 @@ with `--compare`
 
 This will allow the user to input expected values to compare with the SAML response.
 SAML Reader will prompt for each value in the terminal. Values can
-be skipped by pressing Enter without inputting a value.
+be skipped by pressing Enter without inputting a value. Example:
 
+```
+Customer First Name: Sam
+Customer Last Name: Ell
+Customer Email Address: sam.ell@mydomain.com
+IdP Issuer URI: Issuer_URI_Here
+MongoDB Assertion Consumer Service URL: https://auth.mongodb.com/sso/saml2/01234abcDE56789ZyXwv
+MongoDB Audience URI: https://www.okta.com/saml2/service-provider/abcdefghijklmnopqrst
+Encryption Algorithm (SHA1 or SHA256): SHA256
+```
 All values will be validated to see if they match expected values for MongoDB Cloud.
 If an attribute does not pass validation, you will be asked to re-enter it or skip it.
 

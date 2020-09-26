@@ -186,7 +186,7 @@ def prompt_for_comparison_values():
         valid_value = False
         while not valid_value:
             try:
-                federation_config.set_value(name, input(prompt))
+                federation_config.set_value(name, input(prompt) or None)
                 valid_value = True
             except ValueError as e:
                 if e.args[0].endswith("did not pass input validation"):
@@ -203,8 +203,8 @@ def prompt_for_comparison_values():
         if not encryption:
             print("Invalid encryption value. Must be ""SHA1"" or ""SHA256""")
         else:
-            # This is meant to convert "sha-256" to "SHA256" for consistency
-            encryption = encryption[0].upper().replace("-", "")
+            # This is meant to convert "sha-256" to "SHA256" in case someone entered that
+            encryption = "SHA" + encryption[0]
     federation_config.set_value('encryption', encryption)
     print("------------")
 
