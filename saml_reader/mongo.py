@@ -474,7 +474,7 @@ class MongoVerifier:
         Returns:
             (dict) Claim attribute values, keyed by claim name
         """
-        return {k: v[0] for k, v in self._saml.get_attributes().items()}
+        return {k: v[0] if v else "" for k, v in self._saml.get_attributes().items()}
 
     def verify_response_has_required_claim_attributes(self):
         """
