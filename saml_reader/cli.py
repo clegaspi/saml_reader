@@ -1,215 +1,16 @@
 """
-Command line interface for SAML Reader parser. This is where MongoDB Cloud-specific
-interpretation of the SAML data is done and returned to the user.
-
-Attributes:
-    VALID_INPUT_TYPES (set): set of strings of the valid input types for this tool
+Command line interface for SAML Reader parser. These functions handle all
+user interaction/display.
 """
 import sys
 import json
 import re
 
-import pyperclip
 import argparse
 
-from saml_reader.cert import Certificate
-from saml_reader.saml import SamlParser, SamlResponseEncryptedError
-from saml_reader.har import HarParser
-from saml_reader import __version__
+from saml_reader.parser import Parser
 from saml_reader.mongo import MongoFederationConfig, MongoVerifier
-
-
-VALID_INPUT_TYPES = {'base64', 'xml', 'har'}
-
-
-def read_file(filename):
-    """
-    Reads data from a file
-
-    Args:
-        filename (basestring): path of file to read
-
-    Returns:
-        (basestring) contents of file
-
-    Raises:
-        (FileNotFoundError) if the file does not exist or cannot be read
-    """
-    try:
-        with open(filename, 'r') as f:
-            data = f.read()
-    except FileNotFoundError:
-        raise FileNotFoundError(f"Cannot find file specified: {filename}")
-    return data
-
-
-def read_clipboard():
-    """
-    Reads data from the system clipboard
-
-    Returns:
-        (basestring) contents of clipboard
-    """
-    data = pyperclip.paste()
-    return data
-
-
-def read_stdin():
-    """
-    Reads contents of stdin (standard in) to get piped data
-
-    Returns:
-        (basestring) concatenated contents of stdin
-    """
-    data = "".join(sys.stdin.readlines())
-    return data
-
-
-def parse_raw_data(input_type, data):
-    """
-    Parse various data types to return SAML response
-
-    Args:
-        input_type (basestring): data type of `data`, must be
-            `'base64'`, `'xml'`, or `'har'`
-        data (basestring): data to parse for SAML response
-
-    Returns:
-        (SamlParser) Object containing SAML data
-
-    Raises:
-        (ValueError) if an invalid `input_type` is specified
-    """
-    if input_type == 'base64':
-        return SamlParser(data)
-    if input_type == 'xml':
-        return SamlParser.from_xml(data)
-    if input_type == 'har':
-        return SamlParser(HarParser(data).parse())
-    raise ValueError(f"Invalid data type specified: {input_type}")
-
-
-def parse_saml_data(source, input_type, filename=None):
-    """
-    Parses input for SAML response and displays summary and analysis
-
-    Args:
-        source (basestring): type of input to read, must be one of:
-            - `'clip'`: read from the system clipboard
-            - `'file'`: read from a file, must specify path in `'filename'`
-            - `'stdin'`: read from pipe via stdin (standard in)
-        input_type (basestring): data type of `data`, must be
-            `'base64'`, `'xml'`, or `'har'`
-        filename (basestring, Optional): path of file to read, only required
-            if `source` is `'file'`
-
-    Returns:
-        None
-
-    Raises:
-        (ValueError) if the `source` or the `input_type` is invalid
-    """
-    input_type = input_type.lower()
-    if input_type not in VALID_INPUT_TYPES:
-        raise ValueError(f"Invalid input type: {input_type}")
-
-    if source == 'clip':
-        raw_data = read_clipboard()
-    elif source == 'stdin':
-        raw_data = read_stdin()
-    elif source == 'file':
-        raw_data = read_file(filename)
-    else:
-        raise ValueError(f"Invalid source: {source}")
-
-    try:
-        saml = parse_raw_data(input_type, raw_data)
-    except SamlResponseEncryptedError:
-        print("SAML response is encrypted. Cannot parse.\n"
-              "Advise customer to update their identity provider "
-              "to send an unencrypted SAML response.")
-        return None, None
-
-    if not saml.validate_num_assertions():
-        if bytes("AuthnRequest", "utf-8") in saml.response:
-            print("The input data appears to be a SAML request instead of a SAML response.\n"
-                  "Please ask the customer for the SAML response instead of the request.")
-        else:
-            print("The SAML data does not contain any response data.")
-        return None, None
-
-    try:
-        cert = Certificate(saml.get_certificate())
-    except ValueError:
-        print("Could not locate certificate. Identity provider info will not be available.")
-        cert = None
-
-    return saml, cert
-
-
-def display_validation_results(verifier):
-    """
-    Display MongoDB Cloud-specific recommendations for identifiable issues
-    with the SAML data.
-
-    Args:
-        verifier (MongoVerifier): SAML and cert data
-
-    Returns:
-        None
-    """
-    error_messages = verifier.get_error_messages()
-    if not error_messages:
-        print("No errors found! :)")
-        print("------------")
-        return
-
-    print("-----MONGODB CLOUD VERIFICATION-----")
-    for msg in error_messages:
-        print(f"\n{msg}\n------")
-
-
-def display_summary(verifier):
-    """
-    Display summary of parsed SAML data
-
-    Args:
-        verifier (MongoVerifier): SAML and cert data
-
-    Returns:
-        None
-    """
-
-    print("-----SAML SUMMARY-----")
-
-    if verifier.has_certificate():
-        print(f"IDENTITY PROVIDER "
-              f"(from certificate):"
-              f"\n{verifier.get_identity_provider()}")
-        print("---")
-    print(f"ISSUER URI:"
-          f"\n{verifier.get_issuer()}")
-    print("---")
-    print(f"AUDIENCE URI:"
-          f"\n{verifier.get_audience_uri()}")
-    print("---")
-    print(f"ASSERTION CONSUMER SERVICE URL:"
-          f"\n{verifier.get_assertion_consumer_service_url()}")
-    print("---")
-    print(f"ENCRYPTION ALGORITHM:"
-          f"\n{verifier.get_encryption_algorithm().upper()}")
-    print("---")
-    print(f"NAME ID:"
-          f"\nValue: {verifier.get_name_id() or '(this value is missing)'}"
-          f"\nFormat: {verifier.get_name_id_format() or '(this value is missing)'}")
-    print("---")
-
-    # Checking for the required attributes for MongoDB Cloud
-    print(f"ATTRIBUTES:")
-    for name, value in verifier.get_claim_attributes().items():
-        print(f"Name: {name}")
-        print(f"Value: {value}")
-        print("-")
+from saml_reader import __version__
 
 
 def cli():
@@ -263,10 +64,14 @@ def cli():
     print(f"Parsing SAML data...")
 
     # Parse saml data before prompting for input values to not risk clipboard being erased
-    saml, cert = parse_saml_data(source, parsed_args.input_type, filename=filename)
+    saml_parser = Parser(source, parsed_args.input_type, filename=filename)
 
-    if not saml:
-        return
+    if not saml_parser.cert_is_valid():
+        for msg in saml_parser.get_errors():
+            print(msg)
+
+        if not saml_parser.saml_is_valid():
+            return
 
     print(f"Done")
 
@@ -279,12 +84,78 @@ def cli():
             federation_config = parse_comparison_values_from_json(parsed_args.compare[0])
             print("Done")
 
-    verifier = MongoVerifier(saml, cert, comparison_values=federation_config)
+    verifier = MongoVerifier(saml_parser.get_saml(),
+                             saml_parser.get_certificate(),
+                             comparison_values=federation_config)
     verifier.validate_configuration()
-
     display_validation_results(verifier)
     if parsed_args.summary:
         display_summary(verifier)
+
+
+def display_validation_results(verifier):
+    """
+    Display MongoDB Cloud-specific recommendations for identifiable issues
+    with the SAML data.
+
+    Args:
+        verifier (MongoVerifier): SAML and cert data
+
+    Returns:
+        None
+    """
+    error_messages = verifier.get_error_messages()
+    if not error_messages:
+        print("No errors found! :)")
+        print("------------")
+        return
+
+    print("-----MONGODB CLOUD VERIFICATION-----")
+    for msg in error_messages:
+        print(f"\n{msg}\n------")
+
+
+def display_summary(verifier):
+    """
+    Display summary of parsed SAML data
+
+    Args:
+        verifier (MongoVerifier): SAML and cert data
+
+    Returns:
+        None
+    """
+
+    print("\n-----SAML SUMMARY-----")
+
+    if verifier.has_certificate():
+        print(f"IDENTITY PROVIDER "
+              f"(from certificate):"
+              f"\n{verifier.get_identity_provider()}")
+        print("---")
+    print(f"ISSUER URI:"
+          f"\n{verifier.get_issuer()}")
+    print("---")
+    print(f"AUDIENCE URI:"
+          f"\n{verifier.get_audience_uri()}")
+    print("---")
+    print(f"ASSERTION CONSUMER SERVICE URL:"
+          f"\n{verifier.get_assertion_consumer_service_url()}")
+    print("---")
+    print(f"ENCRYPTION ALGORITHM:"
+          f"\n{verifier.get_encryption_algorithm().upper()}")
+    print("---")
+    print(f"NAME ID:"
+          f"\nValue: {verifier.get_name_id() or '(this value is missing)'}"
+          f"\nFormat: {verifier.get_name_id_format() or '(this value is missing)'}")
+    print("---")
+
+    # Checking for the required attributes for MongoDB Cloud
+    print(f"ATTRIBUTES:")
+    for name, value in verifier.get_claim_attributes().items():
+        print(f"Name: {name}")
+        print(f"Value: {value}")
+        print("-")
 
 
 def prompt_for_comparison_values():
