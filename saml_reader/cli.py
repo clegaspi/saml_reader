@@ -147,8 +147,8 @@ def display_summary(verifier):
     print(f"ISSUER URI:"
           f"\n{verifier.get_issuer()}")
     print("---")
-    print(f"AUDIENCE URI:"
-          f"\n{verifier.get_audience_uri()}")
+    print(f"AUDIENCE URL:"
+          f"\n{verifier.get_audience_url()}")
     print("---")
     print(f"ASSERTION CONSUMER SERVICE URL:"
           f"\n{verifier.get_assertion_consumer_service_url()}")
@@ -184,9 +184,9 @@ def prompt_for_comparison_values():
         ('firstName', "Customer First Name: "),
         ('lastName', "Customer Last Name: "),
         ('email', "Customer Email Address: "),
-        ('issuer', "IdP Issuer URI: "),
         ('acs', "MongoDB Assertion Consumer Service URL: "),
-        ('audience', "MongoDB Audience URI: ")
+        ('audience', "MongoDB Audience URL: "),
+        ('issuer', "IdP Issuer URI: "),
     ]
 
     for name, prompt in prompt_by_value_name:

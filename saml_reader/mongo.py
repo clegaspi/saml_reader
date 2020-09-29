@@ -145,10 +145,10 @@ class MongoVerifier:
             self._errors.append(f"The Issuer URI does not match the anticipated pattern.\n"
                                 f"Issuer URI: {self.get_issuer()}")
 
-        # Verify Audience URI matches regex
-        if not self.verify_audience_uri_pattern():
-            self._errors.append(f"The Audience URI does not match the anticipated pattern.\n"
-                                f"Audience URI: {self.get_audience_uri()}")
+        # Verify Audience URL matches regex
+        if not self.verify_audience_url_pattern():
+            self._errors.append(f"The Audience URL does not match the anticipated pattern.\n"
+                                f"Audience URL: {self.get_audience_url()}")
 
         # Verify ACS URL matches regex
         if not self.verify_assertion_consumer_service_url_pattern():
@@ -183,11 +183,11 @@ class MongoVerifier:
                            "to be set to match the SAML value"
                 self._errors.append(err_msg)
 
-            # Check Audience URI matches provided value
+            # Check Audience URL matches provided value
             value = self._comparison_values.get_value('audience')
-            if value and not self.verify_audience_uri(value):
-                err_msg = "The Audience URI in the SAML response does not match the specified comparison value:\n"
-                err_msg += f"SAML value: {self.get_audience_uri()}\n"
+            if value and not self.verify_audience_url(value):
+                err_msg = "The Audience URL in the SAML response does not match the specified comparison value:\n"
+                err_msg += f"SAML value: {self.get_audience_url()}\n"
                 err_msg += f"Specified comparison value: {self._comparison_values.get_value('audience')}"
                 err_msg += "\nGenerally, this means that the Atlas configuration needs " \
                            "to be set to match the SAML value"
@@ -288,39 +288,39 @@ class MongoVerifier:
         return self._matches_regex(VALIDATION_REGEX_BY_ATTRIB['issuer'],
                                    self.get_issuer())
 
-    def get_audience_uri(self):
+    def get_audience_url(self):
         """
-        Get Audience URI
+        Get Audience URL
 
         Returns:
-            (`basestring` or `None`) Audience URI, if found in the SAML response, otherwise None
+            (`basestring` or `None`) Audience URL, if found in the SAML response, otherwise None
         """
         audiences = self._saml.get_audiences()
         if audiences:
             return audiences[0]
         return None
 
-    def verify_audience_uri(self, expected_value):
+    def verify_audience_url(self, expected_value):
         """
-        Checks Audience URI against expected value
+        Checks Audience URL against expected value
 
         Args:
-            expected_value (basestring): expected Audience URI
+            expected_value (basestring): expected Audience URL
 
         Returns:
             (bool) True if they match, False otherwise
         """
-        return self.get_audience_uri() == expected_value
+        return self.get_audience_url() == expected_value
 
-    def verify_audience_uri_pattern(self):
+    def verify_audience_url_pattern(self):
         """
-        Checks if Audience URI matches the expected regular expression
+        Checks if Audience URL matches the expected regular expression
 
         Returns:
             (bool) True if matches the regex, False otherwise
         """
         return self._matches_regex(VALIDATION_REGEX_BY_ATTRIB['audience'],
-                                   self.get_audience_uri())
+                                   self.get_audience_url())
 
     def get_assertion_consumer_service_url(self):
         """
@@ -560,7 +560,7 @@ class MongoFederationConfig:
         Args:
             **kwargs: currently accepted keywords are:
                 - `issuer`: Issuer URI
-                - `audience`: Audience URI
+                - `audience`: Audience URL
                 - `acs`: Assertion Consumer Service URL
                 - `encryption`: Encryption algorithm
                 - `firstName`: expected value for "firstName" claim attribute

@@ -107,7 +107,7 @@ Customer Last Name: Ell
 Customer Email Address: sam.ell@mydomain.com
 IdP Issuer URI: Issuer_URI_Here
 MongoDB Assertion Consumer Service URL: https://auth.mongodb.com/sso/saml2/01234abcDE56789ZyXwv
-MongoDB Audience URI: https://www.okta.com/saml2/service-provider/abcdefghijklmnopqrst
+MongoDB Audience URL: https://www.okta.com/saml2/service-provider/abcdefghijklmnopqrst
 Encryption Algorithm (SHA1 or SHA256): SHA256
 ```
 All values will be validated to see if they match expected values for MongoDB Cloud.
@@ -123,7 +123,7 @@ comparison values in the format:
   "email": "sam.ell@mydomain.com",
   "issuer": "Issuer URI here",
   "acs": "Assertion Consumer Service URL here",
-  "audience": "Audience URI here",
+  "audience": "Audience URL here",
   "encryption": "Must be 'SHA1' or 'SHA256'"
 } 
 ```
