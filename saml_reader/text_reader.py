@@ -6,7 +6,7 @@ import sys
 import pyperclip
 
 from saml_reader.cert import Certificate
-from saml_reader.saml import SamlParser, SamlResponseEncryptedError
+from saml_reader.saml.parser import StandardSamlParser, SamlResponseEncryptedError
 from saml_reader.har import HarParser
 
 
@@ -69,8 +69,8 @@ class TextReader:
             self._valid_saml = False
 
         if self._valid_saml:
-            if not self._saml.validate_num_assertions():
-                if bytes("AuthnRequest", "utf-8") in self._saml.response:
+            if not self._saml.is_assertion_found():
+                if bytes("AuthnRequest", "utf-8") in self._saml.get_xml():
                     self._errors.append(
                         "The input data appears to be a SAML request instead of a SAML response.\n"
                         "Please ask the customer for the SAML response instead of the request."
@@ -150,11 +150,11 @@ class TextReader:
             (ValueError) if an invalid `input_type` is specified
         """
         if input_type == 'base64':
-            return SamlParser(data)
+            return StandardSamlParser(data)
         if input_type == 'xml':
-            return SamlParser.from_xml(data)
+            return StandardSamlParser.from_xml(data)
         if input_type == 'har':
-            return SamlParser(HarParser(data).parse())
+            return StandardSamlParser(HarParser(data).parse())
         raise ValueError(f"Invalid data type specified: {input_type}")
 
     def get_saml(self):

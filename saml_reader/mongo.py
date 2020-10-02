@@ -261,10 +261,10 @@ class MongoVerifier:
         Returns:
             (`basestring` or `None`) Issuer URI, if found in the SAML response, otherwise None
         """
-        issuers = self._saml.get_issuers()
-        if issuers:
-            return issuers[0]
-        return None
+        try:
+            return self._saml.get_issuer_uri()
+        except ValueError:
+            return None
 
     def verify_issuer(self, expected_value):
         """
@@ -295,10 +295,10 @@ class MongoVerifier:
         Returns:
             (`basestring` or `None`) Audience URL, if found in the SAML response, otherwise None
         """
-        audiences = self._saml.get_audiences()
-        if audiences:
-            return audiences[0]
-        return None
+        try:
+            return self._saml.get_audience_url()
+        except ValueError:
+            return None
 
     def verify_audience_url(self, expected_value):
         """
@@ -327,9 +327,12 @@ class MongoVerifier:
         Get Assertion Consumer Service (ACS) URL
 
         Returns:
-            (`basestring` or `None`) ACS URI, if found in the SAML response, otherwise None
+            (`basestring` or `None`) ACS URL, if found in the SAML response, otherwise None
         """
-        return self._saml.get_acs()
+        try:
+            return self._saml.get_assertion_consumer_service_url()
+        except ValueError:
+            return None
 
     def verify_assertion_consumer_service_url(self, expected_value):
         """
@@ -360,7 +363,10 @@ class MongoVerifier:
         Returns:
             (`basestring`) Encryption algorithm
         """
-        return self._saml.get_encryption_algorithm()
+        try:
+            return self._saml.get_encryption_algorithm()
+        except ValueError:
+            return None
 
     def verify_encryption_algorithm(self, expected_value):
         """
@@ -393,10 +399,9 @@ class MongoVerifier:
             (`basestring` or `None`) Name ID, if found in the SAML response, otherwise None
         """
         try:
-            name_id = self._saml.get_subject_nameid()
+            return self._saml.get_subject_name_id()
         except ValueError:
             return None
-        return name_id
 
     def verify_name_id(self, expected_value):
         """
@@ -453,10 +458,9 @@ class MongoVerifier:
             (`basestring` or `None`) Name ID format, if found in the SAML response, otherwise None
         """
         try:
-            name_id_format = self._saml.get_subject_nameid_format()
+            return self._saml.get_subject_name_id_format()
         except ValueError:
             return None
-        return name_id_format
 
     def verify_name_id_format(self):
         """
@@ -474,7 +478,7 @@ class MongoVerifier:
         Returns:
             (dict) Claim attribute values, keyed by claim name
         """
-        return {k: v[0] if v else "" for k, v in self._saml.get_attributes().items()}
+        return self._saml.get_attributes()
 
     def verify_response_has_required_claim_attributes(self):
         """
