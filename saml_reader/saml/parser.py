@@ -185,7 +185,7 @@ class StandardSamlParser(BaseSamlParser):
         Retrieves the service provider's Audience URL.
 
         Returns:
-            (basestring) Value of encryption algorithm
+            (basestring) Value of Audience URL algorithm
         Raises:
             (ValueError) Raised when the Audience URL
              entry is not found in the data
@@ -197,10 +197,10 @@ class StandardSamlParser(BaseSamlParser):
 
     def get_issuer_uri(self):
         """
-        Retrieves the identity provider's Audience URL.
+        Retrieves the identity provider's Issuer URI.
 
         Returns:
-            (basestring) Value of encryption algorithm
+            (basestring) Value of Issuer URI
         Raises:
             (ValueError) Raised when the Issuer URI
              entry is not found in the data
@@ -215,7 +215,7 @@ class StandardSamlParser(BaseSamlParser):
         Retrieves the identity provider's claim attributes.
 
         Returns:
-            (basestring) Value of encryption algorithm
+            (dict) Claim attribute values keyed by attribute name
         Raises:
             (ValueError) Raised when the attributes
              are not found in the data
@@ -315,7 +315,7 @@ class RegexSamlParser(BaseSamlParser):
             (ValueError) Raised when the certificate entry is not found in the data
         """
 
-        rx = r"(?s)<ds:X509Certificate.*?>(.*?)<\/ds:X509Certificate>"
+        rx = r"(?s)<(?:ds:)?X509Certificate.*?>(.*?)<\/(?:ds:)?X509Certificate>"
 
         result = re.findall(rx, self._saml)
 
@@ -386,7 +386,7 @@ class RegexSamlParser(BaseSamlParser):
             (ValueError) Raised when the encryption algorithm
              entry is not found in the data
         """
-        rx = r"(?s)<ds:SignatureMethod.*?Algorithm=\"(.+?)\".*?>"
+        rx = r"(?s)<(?:ds:)?SignatureMethod.*?Algorithm=\"(.+?)\".*?>"
 
         result = re.findall(rx, self._saml)
 
@@ -404,7 +404,7 @@ class RegexSamlParser(BaseSamlParser):
         Retrieves the service provider's Audience URL.
 
         Returns:
-            (basestring) Value of encryption algorithm
+            (basestring) Value of Audience URL algorithm
         Raises:
             (ValueError) Raised when the Audience URL
              entry is not found in the data
@@ -418,10 +418,10 @@ class RegexSamlParser(BaseSamlParser):
 
     def get_issuer_uri(self):
         """
-        Retrieves the identity provider's Audience URL.
+        Retrieves the identity provider's Issuer URI.
 
         Returns:
-            (basestring) Value of encryption algorithm
+            (basestring) Value of Issuer URI
         Raises:
             (ValueError) Raised when the Issuer URI
              entry is not found in the data
@@ -439,7 +439,7 @@ class RegexSamlParser(BaseSamlParser):
         Retrieves the identity provider's claim attributes.
 
         Returns:
-            (basestring) Value of encryption algorithm
+            (dict) Claim attribute values keyed by attribute name
         Raises:
             (ValueError) Raised when the attributes
              are not found in the data
