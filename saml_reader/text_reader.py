@@ -6,7 +6,10 @@ import sys
 import pyperclip
 
 from saml_reader.cert import Certificate
-from saml_reader.saml.parser import StandardSamlParser, SamlResponseEncryptedError
+# from saml_reader.saml.parser import StandardSamlParser, SamlResponseEncryptedError
+# TODO: Remove this hack when done testing
+from saml_reader.saml.parser import RegexSamlParser as StandardSamlParser
+from saml_reader.saml.parser import SamlResponseEncryptedError
 from saml_reader.har import HarParser
 
 
@@ -70,7 +73,7 @@ class TextReader:
 
         if self._valid_saml:
             if not self._saml.is_assertion_found():
-                if bytes("AuthnRequest", "utf-8") in self._saml.get_xml():
+                if "AuthnRequest" in self._saml.get_xml():
                     self._errors.append(
                         "The input data appears to be a SAML request instead of a SAML response.\n"
                         "Please ask the customer for the SAML response instead of the request."

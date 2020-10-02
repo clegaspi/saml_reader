@@ -9,6 +9,7 @@ import re
 
 from onelogin.saml2.response import OneLogin_Saml2_Response
 from onelogin.saml2.utils import OneLogin_Saml2_Utils as utils
+from urllib.parse import unquote
 
 from saml_reader.saml.base import BaseSamlParser
 
@@ -47,13 +48,10 @@ class StandardSamlParser(BaseSamlParser):
         Raises:
             (SamlResponseEncryptedError) Raised when SAML response is encrypted
         """
-        # TODO: Add a kwarg to URL-decode the base64 before parsing because if someone
-        #       pulled the SAML response from a HAR directly or from the developer console,
-        #       they may pull a URL-encoded version
         try:
             self._saml = self._OLISamlParser(
                 None,
-                response if not url_decode else utils.b64decode(response)
+                response if not url_decode else unquote(response)
             )
         except AttributeError as e:
             if 'get_sp_key' in e.args[0]:
@@ -243,4 +241,235 @@ class StandardSamlParser(BaseSamlParser):
         Returns:
             (basestring) SAML response as XML string
         """
-        return self._saml.response
+        return str(self._saml.response)
+
+
+class RegexSamlParser(BaseSamlParser):
+    """
+    SAML parser which will be a little more forgiving to XML syntax errors by
+    relying on regex instead of an XML parser
+    """
+
+    def __init__(self, response, url_decode=False):
+        """
+        Parses SAML response from base64 input.
+
+        Args:
+            response (basestring): SAML response as a base64-encoded string
+            url_decode (bool): True performs url decoding before parsing. Default: False.
+
+        Raises:
+            (SamlResponseEncryptedError) Raised when SAML response is encrypted
+        """
+        if url_decode:
+            response = unquote(response)
+        self._saml = str(utils.b64decode(response))
+
+        if self.is_encrypted():
+            raise SamlResponseEncryptedError("SAML response is encrypted. Cannot parse without key")
+
+        super().__init__()
+
+    def is_encrypted(self):
+        rx = "(?s)<EncryptedAssertion"
+        result = re.findall(rx, self._saml)
+
+        return bool(result)
+
+    @classmethod
+    def from_xml(cls, xml):
+        """
+        Instantiates the class using XML input.
+
+        Args:
+            xml (basestring): SAML response as stringified XML document
+
+        Returns:
+            (SamlParser) parsed SAML response object
+        """
+        # This just re-encodes the XML as base64 before passing it into constructor
+        return cls(utils.b64encode(xml))
+
+    @classmethod
+    def from_base64(cls, base64, url_decode=False):
+        """
+        Instantiates the class using base64-encoded XML input.
+
+        Args:
+            base64 (basestring): SAML response as base64-encoded XML string
+            url_decode (bool): True performs url decoding before parsing. Default: False.
+
+        Returns:
+            (SamlParser) parsed SAML response object
+        """
+
+        return cls(base64, url_decode=url_decode)
+
+    def get_certificate(self):
+        """
+        Retrieves text of X.509 public certificate included in the SAML response.
+
+        Returns:
+            (basestring) Certificate contents as string
+        Raises:
+            (ValueError) Raised when the certificate entry is not found in the data
+        """
+
+        rx = r"(?s)<ds:X509Certificate.*?>(.*?)<\/ds:X509Certificate>"
+
+        result = re.findall(rx, self._saml)
+
+        if result:
+            return result[0]
+        # TODO: Maybe change these functions to return none instead of failing hard
+        raise ValueError("Did not find certificate")
+
+    def get_subject_name_id(self):
+        """
+        Retrieves the Name ID value from the subject section.
+
+        Returns:
+            (basestring) Value of the Name ID
+        Raises:
+            (ValueError) Raised when the Name ID entry is not found in the data
+        """
+        rx = r"(?s)<(?:saml.?:)?NameID.*?>(.*?)<\/(?:saml.?:)?NameID>"
+
+        result = re.findall(rx, self._saml)
+
+        if result:
+            return result[0]
+        raise ValueError("Did not find Name ID")
+
+    def get_subject_name_id_format(self):
+        """
+        Retrieves the Name ID format from the subject section.
+
+        Returns:
+            (basestring) Format attribute of Name ID
+        Raises:
+            (ValueError) Raised when the Name ID entry is not found in the data
+        """
+        rx = r"(?s)<(?:saml.?:)?NameID.*?Format=\"(.+?)\".*?>"
+
+        result = re.findall(rx, self._saml)
+        if result:
+            return result[0]
+        raise ValueError("Did not find Name ID Format")
+
+    def get_assertion_consumer_service_url(self):
+        """
+        Retrieves the service provider's Assertion Consumer Service URL.
+
+        Returns:
+            (basestring) Value of Assertion Consumer Service URL
+        Raises:
+            (ValueError) Raised when the Assertion Consumer Service
+             entry is not found in the data
+        """
+        rx = r"(?s)<saml.*?:Response.*?Destination=\"(.+?)\".*?>"
+
+        result = re.findall(rx, self._saml)
+
+        if result:
+            return result[0]
+        raise ValueError("Did not find ACS")
+
+    def get_encryption_algorithm(self):
+        """
+        Retrieves the encryption algorithm used for certificate. Should be
+        "sha1" or "sha256".
+
+        Returns:
+            (basestring) Value of encryption algorithm
+        Raises:
+            (ValueError) Raised when the encryption algorithm
+             entry is not found in the data
+        """
+        rx = r"(?s)<ds:SignatureMethod.*?Algorithm=\"(.+?)\".*?>"
+
+        result = re.findall(rx, self._saml)
+
+        if result:
+            # TODO: Change to .get('Algorithm') if changing function to soft fail
+            algorithm_uri = result[0]
+            algorithm = re.findall(r"sha(1|256)", algorithm_uri)
+            if not algorithm:
+                return ValueError(f"Unexpected algorithm value: {algorithm_uri}")
+            return "SHA" + algorithm[0]
+        raise ValueError("Did not find algorithm value")
+
+    def get_audience_url(self):
+        """
+        Retrieves the service provider's Audience URL.
+
+        Returns:
+            (basestring) Value of encryption algorithm
+        Raises:
+            (ValueError) Raised when the Audience URL
+             entry is not found in the data
+        """
+        rx = r"(?s)<(?:saml.?:)?Audience(?:\s.*?>|>)(.*?)<\/(?:saml.?:)?Audience>"
+
+        result = re.findall(rx, self._saml)
+        if result:
+            return result[0]
+        raise ValueError("Audience URL not found")
+
+    def get_issuer_uri(self):
+        """
+        Retrieves the identity provider's Audience URL.
+
+        Returns:
+            (basestring) Value of encryption algorithm
+        Raises:
+            (ValueError) Raised when the Issuer URI
+             entry is not found in the data
+        """
+        rx = r"(?s)<(?:saml.?:)?Issuer.*?>(.*?)<\/(?:saml.?:)?Issuer>"
+
+        result = re.findall(rx, self._saml)
+
+        if result:
+            return result[0]
+        raise ValueError("Issuer URI not found")
+
+    def get_attributes(self):
+        """
+        Retrieves the identity provider's claim attributes.
+
+        Returns:
+            (basestring) Value of encryption algorithm
+        Raises:
+            (ValueError) Raised when the attributes
+             are not found in the data
+        """
+        rx = r"(?s)<(?:saml.?:)?Attribute.*?Name=\"(.+?)\".*?>.*?<(?:saml.?:)?AttributeValue.*?>(.*?)" \
+             r"<\/(?:saml.?:)?AttributeValue>.*?<\/(?:saml.?:)?Attribute>"
+
+        result = re.findall(rx, self._saml)
+
+        if not result:
+            raise ValueError("Attributes not found")
+        return {k: v if v else "" for k, v in result}
+
+    def is_assertion_found(self):
+        """
+        Checks if the response contains exactly one assertion.
+
+        Returns:
+            (bool): True if the response contains one assertion, False otherwise
+        """
+        rx = r"(?s)<(?:saml.?:)?Assertion.*?ID=\"(.+?)\".*?>"
+
+        result = re.findall(rx, self._saml)
+        return len(result) == 1
+
+    def get_xml(self):
+        """
+        Return raw XML of SAML response
+
+        Returns:
+            (basestring) SAML response as XML string
+        """
+        return self._saml
