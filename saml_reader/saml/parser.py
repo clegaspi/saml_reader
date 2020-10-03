@@ -271,6 +271,12 @@ class RegexSamlParser(BaseSamlParser):
         super().__init__()
 
     def is_encrypted(self):
+        """
+        Determines if the SAML response is encrypted.
+
+        Returns:
+            (bool) True if encrypted, False otherwise
+        """
         rx = "(?s)<EncryptedAssertion"
         result = re.findall(rx, self._saml)
 
