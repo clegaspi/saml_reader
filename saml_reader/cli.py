@@ -186,6 +186,7 @@ def prompt_for_comparison_values():
         ('email', "Customer Email Address: "),
         ('acs', "MongoDB Assertion Consumer Service URL: "),
         ('audience', "MongoDB Audience URL: "),
+        ('domains', "Domain(s) associated with IdP\n(if multiple, separate by a space): "),
         ('issuer', "IdP Issuer URI: "),
     ]
 

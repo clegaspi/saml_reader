@@ -14,7 +14,11 @@ VALIDATION_REGEX_BY_ATTRIB = {
     'issuer': r'^\s*\S+.*$',
     'acs': r'^https:\/\/auth\.mongodb\.com\/sso\/saml2\/[a-z0-9A-Z]{20}$',
     'audience': r'^https:\/\/www\.okta\.com\/saml2\/service-provider\/[a-z]{20}$',
-    'encryption': r'^(?i)sha-?(1|256)$'
+    'encryption': r'^(?i)sha-?(1|256)$',
+    'domains': r'(?i)([A-Z0-9.-]+?\.[A-Z]{2,}\s*)+'
+}
+ATTRIB_PARSING_FUNCS = {
+    'domains': lambda x: [v.lower() for v in re.findall(r'(?i)([A-Z0-9.-]+?\.[A-Z]{2,})\s*', x)]
 }
 
 
@@ -199,6 +203,48 @@ class MongoVerifier:
                            "The value in Name ID will be the user's login username and the value in the\n" \
                            "email attribute will be the address where the user receives email messages."
                 self._errors.append(err_msg)
+
+            # Runs tests on federated domain, if specified
+            domains = self._comparison_values.get_value('domains')
+            if domains:
+                if not is_problem_with_name_id and not self.verify_name_id_contains_federated_domain():
+                    err_msg = "The Name ID does not contain one of the federated domains specified:\n"
+                    err_msg += f"Name ID value: {self.get_name_id()}\n"
+                    err_msg += f"Specified valid domains:\n"
+                    for domain in domains:
+                        err_msg += f"- {domain}\n"
+                    err_msg += "If the Name ID does not contain a verified domain name, it may be because\n" \
+                               "the source Active Directory field does not contain the user's e-mail address.\n" \
+                               "The source field may contain an internal username or other value instead."
+                    self._errors.append(err_msg)
+
+                if self.get_claim_attributes().get('email') and \
+                        not self.verify_email_contains_federated_domain():
+                    err_msg = "The 'email' attribute does not contain one of the federated domains specified:\n"
+                    err_msg += f"SAML 'email' attribute value: {self.get_name_id()}\n"
+                    err_msg += f"Specified valid domains:\n"
+                    for domain in domains:
+                        err_msg += f"- {domain}\n"
+                    err_msg += "If the 'email' attribute does not contain a verified domain name, it may be because\n" \
+                               "the source Active Directory field does not contain the user's e-mail address.\n" \
+                               "The source field may contain an internal username or other value instead.\n"
+                    err_msg += "This is not necessarily an error, but may indicate there is a misconfiguration.\n" \
+                               "The value in Name ID will be the user's login username and the value in the\n" \
+                               "email attribute will be the address where the user receives email messages.\n" \
+                               "So only the Name ID must contain the domain."
+                    self._errors.append(err_msg)
+
+                if self._comparison_values.get_value('email') and \
+                        not self.verify_comparison_email_contains_federated_domain():
+                    err_msg = "The specified comparison e-mail value does not contain\n" \
+                              "one of the federated domains specified:\n"
+                    err_msg += f"Specified e-mail value: {self._comparison_values.get_value('email')}\n"
+                    err_msg += f"Specified valid domains:\n"
+                    for domain in domains:
+                        err_msg += f"- {domain}\n"
+                    err_msg += "If the e-mail specified is the user's MongoDB username, then the Atlas\n" \
+                               "identity provider configuration likely has the incorrect domain(s) verified."
+                    self._errors.append(err_msg)
 
             # Check Issuer URI matches provided value
             value = self._comparison_values.get_value('issuer')
@@ -498,6 +544,16 @@ class MongoVerifier:
         """
         return self._matches_regex(EMAIL_REGEX_MATCH, self.get_name_id())
 
+    def verify_name_id_contains_federated_domain(self):
+        """
+        Checks if Name ID contains one of the federated domains specified
+
+        Returns:
+            (bool) True if Name ID ends with one of the domains, False otherwise
+        """
+        return any(self.get_name_id().lower().endswith(domain)
+                   for domain in self._comparison_values.get_value('domains'))
+
     @staticmethod
     def _matches_regex(regex, value):
         """
@@ -616,6 +672,27 @@ class MongoVerifier:
                     invalid_attributes.add(attrib)
         return invalid_attributes
 
+    def verify_email_contains_federated_domain(self):
+        """
+        Checks if email attribute contains one of the federated domains specified
+
+        Returns:
+            (bool) True if email contains ends with one of the domains, False otherwise
+        """
+        return any(self.get_claim_attributes()['email'].lower().endswith(domain)
+                   for domain in self._comparison_values.get_value('domains'))
+
+    def verify_comparison_email_contains_federated_domain(self):
+        """
+        Checks if the email value entered for comparison contains one of the
+        federated domains specified
+
+        Returns:
+            (bool) True if email contains ends with one of the domains, False otherwise
+        """
+        return any(self._comparison_values.get_value('email').lower().endswith(domain)
+                   for domain in self._comparison_values.get_value('domains'))
+
     def get_error_messages(self):
         """
         Get errors generated during validation
@@ -644,6 +721,8 @@ class MongoFederationConfig:
                 - `firstName`: expected value for "firstName" claim attribute
                 - `lastName`: expected value for "lastName" claim attribute
                 - `email`: expected value for Name ID and "email" claim attribute
+                - `domains`: domain names associated with the identity provider, as a
+                    string. Multiple domains separated by whitespace.
         """
         self._settings = dict()
         if kwargs:
@@ -694,6 +773,8 @@ class MongoFederationConfig:
 
         if name in VALIDATION_REGEX_BY_ATTRIB:
             if re.fullmatch(VALIDATION_REGEX_BY_ATTRIB[name], value):
+                if name in ATTRIB_PARSING_FUNCS:
+                    value = ATTRIB_PARSING_FUNCS[name](value)
                 self._settings[name] = value
             else:
                 raise ValueError(f"Attribute '{name}' did not pass input validation")
