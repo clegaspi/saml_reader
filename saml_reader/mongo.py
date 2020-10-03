@@ -17,9 +17,13 @@ VALIDATION_REGEX_BY_ATTRIB = {
     'encryption': r'^(?i)sha-?(1|256)$',
     'domains': r'(?i)([A-Z0-9.-]+?\.[A-Z]{2,}\s*)+'
 }
+
 ATTRIB_PARSING_FUNCS = {
     'domains': lambda x: [v.lower() for v in re.findall(r'(?i)([A-Z0-9.-]+?\.[A-Z]{2,})\s*', x)],
-    'encryption': lambda x: "SHA" + re.findall(VALIDATION_REGEX_BY_ATTRIB['encryption'], x)[0]
+    'encryption': lambda x: "SHA" + re.findall(VALIDATION_REGEX_BY_ATTRIB['encryption'], x)[0],
+    'firstName': lambda x: x.strip(),
+    'lastName': lambda x: x.strip(),
+    'email': lambda x: x.strip()
 }
 
 
