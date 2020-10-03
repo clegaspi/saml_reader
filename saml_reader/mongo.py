@@ -521,7 +521,7 @@ class MongoVerifier:
 
     def verify_name_id(self, expected_value):
         """
-        Checks Name ID against expected value
+        Checks Name ID against expected value (case-insensitive)
 
         Args:
             expected_value (basestring): expected Name ID
@@ -529,7 +529,7 @@ class MongoVerifier:
         Returns:
             (bool) True if they match, False otherwise
         """
-        return self.get_name_id() == expected_value
+        return self.get_name_id().lower() == expected_value.lower()
 
     def verify_name_id_exists(self):
         """
@@ -646,7 +646,7 @@ class MongoVerifier:
 
     def verify_name_id_and_email_are_the_same(self):
         """
-        Check if Name ID and email values from SAML response match. This is not
+        Check if Name ID and email values from SAML response match (case-insensitive). This is not
         a hard requirement, but is typical and a mismatch may indicate an incorrect
         configuration.
 
@@ -657,11 +657,11 @@ class MongoVerifier:
         name_id = self.get_name_id()
         email = self.get_claim_attributes().get("email")
 
-        return name_id and email and name_id == email
+        return name_id and email and name_id.lower() == email.lower()
 
     def verify_claim_attributes_against_comparison_values(self):
         """
-        Check required and optional claim attributes against provided values. Check is only
+        Check required and optional claim attributes against provided values (case-insensitive). Check is only
         performed if a comparison value is provided.
 
         Returns:
@@ -673,7 +673,7 @@ class MongoVerifier:
         for attrib in all_acceptable_attributes:
             if attrib in claim_attributes:
                 comparison_value = self._comparison_values.get_value(attrib)
-                if comparison_value and claim_attributes[attrib] != comparison_value:
+                if comparison_value and claim_attributes[attrib].lower() != comparison_value.lower():
                     invalid_attributes.add(attrib)
         return invalid_attributes
 
