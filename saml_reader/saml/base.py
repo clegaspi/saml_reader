@@ -3,8 +3,7 @@ from abc import ABC, abstractmethod
 
 class BaseSamlParser(ABC):
     """
-    Wrapper around OneLogin SAML response parser, adding functionality to
-    grab fields other than what is supported by default.
+    Generalized SAML response parser
     """
 
     def __init__(self):

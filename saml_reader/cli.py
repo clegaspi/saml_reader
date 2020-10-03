@@ -145,16 +145,16 @@ def display_summary(verifier):
               f"\n{verifier.get_identity_provider()}")
         print("---")
     print(f"ISSUER URI:"
-          f"\n{verifier.get_issuer()}")
+          f"\n{verifier.get_issuer() or '(this value is missing)'}")
     print("---")
     print(f"AUDIENCE URL:"
-          f"\n{verifier.get_audience_url()}")
+          f"\n{verifier.get_audience_url() or '(this value is missing)'}")
     print("---")
     print(f"ASSERTION CONSUMER SERVICE URL:"
-          f"\n{verifier.get_assertion_consumer_service_url()}")
+          f"\n{verifier.get_assertion_consumer_service_url() or '(this value is missing)'}")
     print("---")
     print(f"ENCRYPTION ALGORITHM:"
-          f"\n{verifier.get_encryption_algorithm().upper()}")
+          f"\n{verifier.get_encryption_algorithm() or '(this value is missing)'}")
     print("---")
     print(f"NAME ID:"
           f"\nValue: {verifier.get_name_id() or '(this value is missing)'}"

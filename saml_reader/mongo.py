@@ -83,9 +83,12 @@ class MongoVerifier:
             None
         """
 
+        unparseable_parameters = set()
+
         # Check if Name ID exists
         is_problem_with_name_id = False
         if not self.verify_name_id_exists():
+            unparseable_parameters.add('name_id')
             is_problem_with_name_id = True
             self._errors.append(f"The Name ID is missing from the SAML Subject.\n"
                                 f"Please be sure the customer's identity provider is\n"
@@ -100,7 +103,11 @@ class MongoVerifier:
                                     f"Name ID: {self.get_name_id()}")
 
             # Verify Name ID format is valid
-            if not self.verify_name_id_format():
+            if not self.verify_name_id_format_exists():
+                unparseable_parameters.add('name_id_format')
+                err_msg = "The Name ID format could not be parsed from the SAML response."
+                self._errors.append(err_msg)
+            elif not self.verify_name_id_format():
                 is_problem_with_name_id = True
                 err_msg = "The Name ID format is not an acceptable format.\n"
                 err_msg += f"SAML value: {self.get_name_id_format()}\n"
@@ -141,22 +148,42 @@ class MongoVerifier:
                                     "email attribute will be the address where the user receives email messages.")
 
         # Verify Issuer URI matches regex
-        if not self.verify_issuer_pattern():
+        if not self.verify_issuer_exists():
+            unparseable_parameters.add('issuer')
+            err_msg = "The Issuer URI could not be parsed from the SAML response."
+            err_msg += "\nCannot run any verification tests for this parameter."
+            self._errors.append(err_msg)
+        elif not self.verify_issuer_pattern():
             self._errors.append(f"The Issuer URI does not match the anticipated pattern.\n"
                                 f"Issuer URI: {self.get_issuer()}")
 
         # Verify Audience URL matches regex
-        if not self.verify_audience_url_pattern():
+        if not self.verify_audience_url_exists():
+            unparseable_parameters.add('audience')
+            err_msg = "The Audience URL could not be parsed from the SAML response."
+            err_msg += "\nCannot run any verification tests for this parameter."
+            self._errors.append(err_msg)
+        elif not self.verify_audience_url_pattern():
             self._errors.append(f"The Audience URL does not match the anticipated pattern.\n"
                                 f"Audience URL: {self.get_audience_url()}")
 
         # Verify ACS URL matches regex
-        if not self.verify_assertion_consumer_service_url_pattern():
+        if not self.verify_assertion_consumer_service_url_exists():
+            unparseable_parameters.add('acs')
+            err_msg = "The Assertion Consumer Service URL could not be parsed from the SAML response."
+            err_msg += "\nCannot run any verification tests for this parameter."
+            self._errors.append(err_msg)
+        elif not self.verify_assertion_consumer_service_url_pattern():
             self._errors.append(f"The Assertion Consumer Service URL does not match the anticipated pattern.\n"
                                 f"ACS URL: {self.get_assertion_consumer_service_url()}")
 
         # Verify encryption algorithm matches regex (it should but you never know)
-        if not self.verify_encryption_algorithm_pattern():
+        if not self.verify_encryption_algorithm_exists():
+            unparseable_parameters.add('encryption')
+            err_msg = "The encryption algorithm could not be parsed from the SAML response."
+            err_msg += "\nCannot run any verification tests for this parameter."
+            self._errors.append(err_msg)
+        elif not self.verify_encryption_algorithm_pattern():
             self._errors.append(f"The encryption algorithm does not match the anticipated pattern.\n"
                                 f"Encryption Algorithm: {self.get_encryption_algorithm()}")
 
@@ -175,7 +202,7 @@ class MongoVerifier:
 
             # Check Issuer URI matches provided value
             value = self._comparison_values.get_value('issuer')
-            if value and not self.verify_issuer(value):
+            if value and 'issuer' not in unparseable_parameters and not self.verify_issuer(value):
                 err_msg = "The Issuer URI in the SAML response does not match the specified comparison value:\n"
                 err_msg += f"SAML value: {self.get_issuer()}\n"
                 err_msg += f"Specified comparison value: {self._comparison_values.get_value('issuer')}"
@@ -185,7 +212,7 @@ class MongoVerifier:
 
             # Check Audience URL matches provided value
             value = self._comparison_values.get_value('audience')
-            if value and not self.verify_audience_url(value):
+            if value and 'audience' not in unparseable_parameters and not self.verify_audience_url(value):
                 err_msg = "The Audience URL in the SAML response does not match the specified comparison value:\n"
                 err_msg += f"SAML value: {self.get_audience_url()}\n"
                 err_msg += f"Specified comparison value: {self._comparison_values.get_value('audience')}"
@@ -195,7 +222,8 @@ class MongoVerifier:
 
             # Check ACS URL matches provided value
             value = self._comparison_values.get_value('acs')
-            if value and not self.verify_assertion_consumer_service_url(value):
+            if value and 'acs' not in unparseable_parameters and \
+                    not self.verify_assertion_consumer_service_url(value):
                 err_msg = "The Assertion Consumer Service URL in the SAML response does not match the " \
                           "specified comparison value:\n"
                 err_msg += f"SAML value: {self.get_assertion_consumer_service_url()}\n"
@@ -206,7 +234,8 @@ class MongoVerifier:
 
             # Check encryption matches provided value
             value = self._comparison_values.get_value('encryption')
-            if value and not self.verify_encryption_algorithm(value):
+            if value and 'encryption' not in unparseable_parameters and \
+                    not self.verify_encryption_algorithm(value):
                 err_msg = "The encryption algorithm for the SAML response does not " \
                           "match the specified comparison value:\n"
                 err_msg += f"SAML value: {self.get_encryption_algorithm()}\n"
@@ -266,6 +295,15 @@ class MongoVerifier:
         except ValueError:
             return None
 
+    def verify_issuer_exists(self):
+        """
+        Checks if Issuer URI was found in the SAML response.
+
+        Returns:
+            (bool) True if found, False otherwise
+        """
+        return self.get_issuer() is not None
+
     def verify_issuer(self, expected_value):
         """
         Checks Issuer URI against expected value
@@ -299,6 +337,15 @@ class MongoVerifier:
             return self._saml.get_audience_url()
         except ValueError:
             return None
+
+    def verify_audience_url_exists(self):
+        """
+        Checks if Audience URL was found in the SAML response.
+
+        Returns:
+            (bool) True if found, False otherwise
+        """
+        return self.get_audience_url() is not None
 
     def verify_audience_url(self, expected_value):
         """
@@ -334,6 +381,15 @@ class MongoVerifier:
         except ValueError:
             return None
 
+    def verify_assertion_consumer_service_url_exists(self):
+        """
+        Checks if Assertion Consumer Service URL was found in the SAML response.
+
+        Returns:
+            (bool) True if found, False otherwise
+        """
+        return self.get_assertion_consumer_service_url() is not None
+
     def verify_assertion_consumer_service_url(self, expected_value):
         """
         Checks Assertion Consumer Service URL against expected value
@@ -367,6 +423,15 @@ class MongoVerifier:
             return self._saml.get_encryption_algorithm()
         except ValueError:
             return None
+
+    def verify_encryption_algorithm_exists(self):
+        """
+        Checks if encryption algorithm was found in the SAML response.
+
+        Returns:
+            (bool) True if found, False otherwise
+        """
+        return self.get_encryption_algorithm() is not None
 
     def verify_encryption_algorithm(self, expected_value):
         """
@@ -461,6 +526,15 @@ class MongoVerifier:
             return self._saml.get_subject_name_id_format()
         except ValueError:
             return None
+
+    def verify_name_id_format_exists(self):
+        """
+        Checks if Name ID Format was found in the SAML response.
+
+        Returns:
+            (bool) True if found, False otherwise
+        """
+        return self.get_name_id_format() is not None
 
     def verify_name_id_format(self):
         """

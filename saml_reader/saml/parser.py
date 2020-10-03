@@ -367,7 +367,9 @@ class RegexSamlParser(BaseSamlParser):
             (ValueError) Raised when the Assertion Consumer Service
              entry is not found in the data
         """
-        rx = r"(?s)<saml.*?:Response.*?Destination=\"(.+?)\".*?>"
+        # This is a pretty relaxed regex because it occurs right at the beginning of the
+        # SAML response where there could be syntax errors if someone copy-pasted poorly
+        rx = r"(?s)(?:<saml.*?:Response)?.*?Destination=\"(.+?)\".*?>"
 
         result = re.findall(rx, self._saml)
 
