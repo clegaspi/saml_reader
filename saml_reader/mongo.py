@@ -18,7 +18,8 @@ VALIDATION_REGEX_BY_ATTRIB = {
     'domains': r'(?i)([A-Z0-9.-]+?\.[A-Z]{2,}\s*)+'
 }
 ATTRIB_PARSING_FUNCS = {
-    'domains': lambda x: [v.lower() for v in re.findall(r'(?i)([A-Z0-9.-]+?\.[A-Z]{2,})\s*', x)]
+    'domains': lambda x: [v.lower() for v in re.findall(r'(?i)([A-Z0-9.-]+?\.[A-Z]{2,})\s*', x)],
+    'encryption': lambda x: "SHA" + re.findall(VALIDATION_REGEX_BY_ATTRIB['encryption'], x)[0]
 }
 
 
@@ -774,6 +775,7 @@ class MongoFederationConfig:
         if name in VALIDATION_REGEX_BY_ATTRIB:
             if re.fullmatch(VALIDATION_REGEX_BY_ATTRIB[name], value):
                 if name in ATTRIB_PARSING_FUNCS:
+                    # Check if we need to parse the value
                     value = ATTRIB_PARSING_FUNCS[name](value)
                 self._settings[name] = value
             else:

@@ -188,6 +188,7 @@ def prompt_for_comparison_values():
         ('audience', "MongoDB Audience URL: "),
         ('domains', "Domain(s) associated with IdP\n(if multiple, separate by a space): "),
         ('issuer', "IdP Issuer URI: "),
+        ('encryption', "Encryption Algorithm (""SHA1"" or ""SHA256""): ")
     ]
 
     for name, prompt in prompt_by_value_name:
@@ -202,18 +203,6 @@ def prompt_for_comparison_values():
                 else:
                     raise e
 
-    encryption = None
-    while not encryption:
-        encryption_string = input("Encryption Algorithm (""SHA1"" or ""SHA256""): ")
-        if encryption_string == "":
-            break
-        encryption = re.findall(r'(?i)SHA-?(1|256)', encryption_string)
-        if not encryption:
-            print("Invalid encryption value. Must be ""SHA1"" or ""SHA256""")
-        else:
-            # This is meant to convert "sha-256" to "SHA256" in case someone entered that
-            encryption = "SHA" + encryption[0]
-    federation_config.set_value('encryption', encryption)
     print("------------")
 
     return federation_config
@@ -232,10 +221,6 @@ def parse_comparison_values_from_json(filename):
     """
     with open(filename, 'r') as f:
         comparison_values = json.load(f)
-
-    if 'encryption' in comparison_values:
-        # This is meant to convert "sha-256" to "SHA256" for consistency
-        comparison_values['encryption'] = comparison_values['encryption'].upper().replace("-", "")
     federation_config = MongoFederationConfig(**comparison_values)
     return federation_config
 
