@@ -85,10 +85,10 @@ class StandardSamlParser(BaseSamlParser):
                 raise SamlResponseEncryptedError("SAML response is encrypted. Cannot parse without key")
 
         def query_assertion(self, path):
-            return self.__query_assertion(path)
+            return self._OneLogin_Saml2_Response__query_assertion(path)
 
         def query(self, path):
-            return self.__query(path)
+            return self._OneLogin_Saml2_Response__query(path)
 
     def __init__(self, response):
         """
