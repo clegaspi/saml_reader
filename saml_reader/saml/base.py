@@ -159,11 +159,25 @@ class BaseSamlParser(ABC):
         pass
 
     @abstractmethod
-    def get_xml(self):
+    def get_xml(self, pretty=False):
         """
         Return raw XML of SAML response
 
+        Args:
+            pretty (bool): Pretty-prints XML if True. False is XML in one line.
+                Default: False.
+
         Returns:
             (basestring) SAML response as XML string
+        """
+        pass
+
+    @abstractmethod
+    def is_saml_request(self):
+        """
+        Determines if received SAML data is actually a SAML request instead of response
+
+        Returns:
+            (bool) True if it is a request, False otherwise
         """
         pass

@@ -6,10 +6,13 @@ In large part, the functionality builds on the python3-saml package produced by 
 """
 
 import re
+from functools import partial
 
 from onelogin.saml2.response import OneLogin_Saml2_Response
 from onelogin.saml2.utils import OneLogin_Saml2_Utils as utils
+from onelogin.saml2.xml_utils import OneLogin_Saml2_XML
 from urllib.parse import unquote
+from lxml import etree
 
 from saml_reader.saml.base import BaseSamlParser
 
@@ -21,6 +24,13 @@ class SamlResponseEncryptedError(Exception):
     pass
 
 
+class SamlParsingError(Exception):
+    """
+    Custom exception type raised when SAML response could not be parsed by this parser
+    """
+    pass
+
+
 class StandardSamlParser(BaseSamlParser):
     """
     Wrapper around OneLogin SAML response parser, adding functionality to
@@ -28,8 +38,31 @@ class StandardSamlParser(BaseSamlParser):
     """
 
     class _OLISamlParser(OneLogin_Saml2_Response):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
+        def __init__(self, response):
+            try:
+                super().__init__(None, response)
+            except etree.XMLSyntaxError:
+                # Inject a parser which attempts to recover bad XML
+                relaxed_xml_parser = etree.XMLParser(recover=True)
+                OneLogin_Saml2_XML._parse_etree = partial(OneLogin_Saml2_XML._parse_etree,
+                                                          parser=relaxed_xml_parser)
+                try:
+                    super().__init__(None, response)
+                except AttributeError as e:
+                    if e.args[0].endswith("'getroottree'"):
+                        # Even the relaxed parser couldn't parse this. Parser fails.
+                        raise SamlParsingError("Could not parse the XML data")
+                    else:
+                        raise e
+                except Exception as e:
+                    raise e
+            except AttributeError as e:
+                if 'get_sp_key' in e.args[0]:
+                    raise SamlResponseEncryptedError("SAML response is encrypted. Cannot parse without key")
+                else:
+                    raise e
+            except Exception as e:
+                raise e
 
         def query_assertion(self, path):
             return self._OneLogin_Saml2_Response__query_assertion(path)
@@ -48,15 +81,9 @@ class StandardSamlParser(BaseSamlParser):
         Raises:
             (SamlResponseEncryptedError) Raised when SAML response is encrypted
         """
-        try:
-            self._saml = self._OLISamlParser(
-                None,
-                response if not url_decode else unquote(response)
-            )
-        except AttributeError as e:
-            if 'get_sp_key' in e.args[0]:
-                raise SamlResponseEncryptedError("SAML response is encrypted. Cannot parse without key")
-
+        self._saml = self._OLISamlParser(
+            response if not url_decode else unquote(response)
+        )
         super().__init__()
 
     @classmethod
@@ -234,14 +261,37 @@ class StandardSamlParser(BaseSamlParser):
         """
         return self._saml.validate_num_assertions()
 
-    def get_xml(self):
+    def get_xml(self, pretty=False):
         """
         Return raw XML of SAML response
+
+        Args:
+            pretty (bool): Pretty-prints XML if True. False is XML in one line.
+                Default: False.
 
         Returns:
             (basestring) SAML response as XML string
         """
-        return str(self._saml.response)
+        raw_xml = self._saml.response
+        if pretty:
+            try:
+                # TODO: Fix this
+                parsed_xml = etree.fromstring(raw_xml)
+                pretty_xml = etree.tostring(parsed_xml.root(), pretty_print=True)
+                return pretty_xml
+            except etree.XMLSyntaxError:
+                pass
+                # raise ValueError("Cannot pretty print")
+        return raw_xml
+
+    def is_saml_request(self):
+        """
+        Determines if received SAML data is actually a SAML request instead of response
+
+        Returns:
+            (bool) True if it is a request, False otherwise
+        """
+        return bytes("AuthnRequest", 'utf-8') in self.get_xml()
 
 
 class RegexSamlParser(BaseSamlParser):
@@ -473,11 +523,35 @@ class RegexSamlParser(BaseSamlParser):
         result = re.findall(rx, self._saml)
         return len(result) == 1
 
-    def get_xml(self):
+    def get_xml(self, pretty=False):
         """
         Return raw XML of SAML response
+
+        Args:
+            pretty (bool): Pretty-prints XML if True. False is XML in one line.
+                Default: False.
 
         Returns:
             (basestring) SAML response as XML string
         """
-        return self._saml
+        raw_xml = self._saml
+        if pretty:
+            try:
+                # TODO: Fix this or forget it
+                text_re = re.compile('>\n\s+([^<>\s].*?)\n\s+</', re.DOTALL)
+                pretty_xml = text_re.sub('>\g<1></', raw_xml.replace("\t", "").replace("\n", ""))
+                print(pretty_xml)
+                return pretty_xml
+            except Exception as e:
+                pass
+                # raise ValueError("Cannot pretty print")
+        return raw_xml
+
+    def is_saml_request(self):
+        """
+        Determines if received SAML data is actually a SAML request instead of response
+
+        Returns:
+            (bool) True if it is a request, False otherwise
+        """
+        return "AuthnRequest" in self.get_xml()

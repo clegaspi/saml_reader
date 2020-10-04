@@ -7,7 +7,8 @@ import pyperclip
 from lxml.etree import XMLSyntaxError
 
 from saml_reader.cert import Certificate
-from saml_reader.saml.parser import SamlResponseEncryptedError, RegexSamlParser, StandardSamlParser
+from saml_reader.saml.parser import RegexSamlParser, StandardSamlParser
+from saml_reader.saml.parser import SamlResponseEncryptedError, SamlParsingError
 from saml_reader.har import HarParser
 
 
@@ -69,7 +70,7 @@ class TextReader:
             )
             self._saml = None
             self._valid_saml = False
-        except XMLSyntaxError:
+        except SamlParsingError:
             self._errors.append("WARNING: XML parsing failed. Using fallback regex parser.\n"
                                 "Some values may not be able to be parsed.")
             used_regex_parser = True
@@ -78,7 +79,7 @@ class TextReader:
 
         if self._valid_saml:
             if not used_regex_parser and not self._saml.is_assertion_found():
-                if "AuthnRequest" in self._saml.get_xml():
+                if self._saml.is_saml_request():
                     self._errors.append(
                         "The input data appears to be a SAML request instead of a SAML response.\n"
                         "Please ask the customer for the SAML response instead of the request."
