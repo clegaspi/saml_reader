@@ -4,7 +4,6 @@ This class handles reading in raw text to be prepped for interpretation by other
 import sys
 
 import pyperclip
-from lxml.etree import XMLSyntaxError
 
 from saml_reader.cert import Certificate
 from saml_reader.saml.parser import RegexSamlParser, StandardSamlParser

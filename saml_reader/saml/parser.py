@@ -13,6 +13,7 @@ from onelogin.saml2.utils import OneLogin_Saml2_Utils as utils
 from onelogin.saml2.xml_utils import OneLogin_Saml2_XML
 from urllib.parse import unquote
 from lxml import etree
+from defusedxml.lxml import RestrictedElement
 
 from saml_reader.saml.base import BaseSamlParser
 
@@ -39,15 +40,33 @@ class StandardSamlParser(BaseSamlParser):
 
     class _OLISamlParser(OneLogin_Saml2_Response):
         def __init__(self, response):
-            try:
-                super().__init__(None, response)
-            except etree.XMLSyntaxError:
-                # Inject a parser which attempts to recover bad XML
-                relaxed_xml_parser = etree.XMLParser(recover=True)
-                OneLogin_Saml2_XML._parse_etree = partial(OneLogin_Saml2_XML._parse_etree,
-                                                          parser=relaxed_xml_parser)
+            # This is basically a copy-paste of the parent class __init__()
+            # with tweaks to handle the change in parser, etc.
+
+            # These are copied from the parent class
+            self.__error = None
+            self.decrypted_document = None
+            self.encrypted = None
+            self.valid_scd_not_on_or_after = None
+
+            # After this point, the logic is customized
+            self.__settings = None
+            self.response = response
+            self.document = None
+            self._used_relaxed_parser = False
+            while self.document is None:
                 try:
-                    super().__init__(None, response)
+                    self.document = OneLogin_Saml2_XML.to_etree(self.response)
+                except etree.XMLSyntaxError:
+                    # Use a parser which attempts to recover bad XML
+                    relaxed_xml_parser = etree.XMLParser(recover=False, resolve_entities=False)
+                    lookup = etree.ElementDefaultClassLookup(element=RestrictedElement)
+                    relaxed_xml_parser.set_element_class_lookup(lookup)
+                    # Inject parser into the OLI class because there is no provided way to
+                    # change parser
+                    OneLogin_Saml2_XML._parse_etree = partial(OneLogin_Saml2_XML._parse_etree,
+                                                              parser=relaxed_xml_parser)
+                    self._used_relaxed_parser = True
                 except AttributeError as e:
                     if e.args[0].endswith("'getroottree'"):
                         # Even the relaxed parser couldn't parse this. Parser fails.
@@ -56,34 +75,32 @@ class StandardSamlParser(BaseSamlParser):
                         raise e
                 except Exception as e:
                     raise e
-            except AttributeError as e:
-                if 'get_sp_key' in e.args[0]:
-                    raise SamlResponseEncryptedError("SAML response is encrypted. Cannot parse without key")
-                else:
-                    raise e
-            except Exception as e:
-                raise e
+
+            if self._used_relaxed_parser:
+                # If the parser was relaxed, want to make sure we brute-force check.
+                encrypted_assertion_nodes = re.findall(r'</?EncryptedAssertion', self.response)
+            else:
+                encrypted_assertion_nodes = self.query('/samlp:Response/saml:EncryptedAssertion')
+            if encrypted_assertion_nodes:
+                raise SamlResponseEncryptedError("SAML response is encrypted. Cannot parse without key")
 
         def query_assertion(self, path):
-            return self._OneLogin_Saml2_Response__query_assertion(path)
+            return self.__query_assertion(path)
 
         def query(self, path):
-            return self._OneLogin_Saml2_Response__query(path)
+            return self.__query(path)
 
-    def __init__(self, response, url_decode=False):
+    def __init__(self, response):
         """
-        Parses SAML response from base64 input.
+        Parses SAML response from XML input.
 
         Args:
-            response (basestring): SAML response as a base64-encoded string
-            url_decode (bool): True performs url decoding before parsing. Default: False.
+            response (basestring): SAML response as a stringified XML document
 
         Raises:
             (SamlResponseEncryptedError) Raised when SAML response is encrypted
         """
-        self._saml = self._OLISamlParser(
-            response if not url_decode else unquote(response)
-        )
+        self._saml = self._OLISamlParser(response)
         super().__init__()
 
     @classmethod
@@ -98,7 +115,7 @@ class StandardSamlParser(BaseSamlParser):
             (SamlParser) parsed SAML response object
         """
         # This just re-encodes the XML as base64 before passing it into constructor
-        return cls(utils.b64encode(xml))
+        return cls(xml)
 
     @classmethod
     def from_base64(cls, base64, url_decode=False):
@@ -113,7 +130,7 @@ class StandardSamlParser(BaseSamlParser):
             (SamlParser) parsed SAML response object
         """
 
-        return cls(base64, url_decode=url_decode)
+        return cls(utils.b64decode(base64 if not url_decode else unquote(base64)))
 
     def get_certificate(self):
         """
@@ -272,17 +289,13 @@ class StandardSamlParser(BaseSamlParser):
         Returns:
             (basestring) SAML response as XML string
         """
-        raw_xml = self._saml.response
         if pretty:
             try:
-                # TODO: Fix this
-                parsed_xml = etree.fromstring(raw_xml)
-                pretty_xml = etree.tostring(parsed_xml.root(), pretty_print=True)
+                pretty_xml = etree.tostring(self._saml.document, pretty_print=True)
                 return pretty_xml
             except etree.XMLSyntaxError:
-                pass
-                # raise ValueError("Cannot pretty print")
-        return raw_xml
+                raise ValueError("Cannot pretty print")
+        return self._saml.response
 
     def is_saml_request(self):
         """
@@ -302,18 +315,15 @@ class RegexSamlParser(BaseSamlParser):
 
     def __init__(self, response, url_decode=False):
         """
-        Parses SAML response from base64 input.
+        Parses SAML response from XML input.
 
         Args:
-            response (basestring): SAML response as a base64-encoded string
-            url_decode (bool): True performs url decoding before parsing. Default: False.
+            response (basestring): SAML response as stringified XML document
 
         Raises:
             (SamlResponseEncryptedError) Raised when SAML response is encrypted
         """
-        if url_decode:
-            response = unquote(response)
-        self._saml = str(utils.b64decode(response))
+        self._saml = str(response)
 
         if self.is_encrypted():
             raise SamlResponseEncryptedError("SAML response is encrypted. Cannot parse without key")
@@ -327,7 +337,7 @@ class RegexSamlParser(BaseSamlParser):
         Returns:
             (bool) True if encrypted, False otherwise
         """
-        rx = "(?s)<EncryptedAssertion"
+        rx = r"(?s)<\/?EncryptedAssertion"
         result = re.findall(rx, self._saml)
 
         return bool(result)
@@ -359,7 +369,7 @@ class RegexSamlParser(BaseSamlParser):
             (SamlParser) parsed SAML response object
         """
 
-        return cls(base64, url_decode=url_decode)
+        return cls(utils.b64decode(base64 if not url_decode else unquote(base64)))
 
     def get_certificate(self):
         """
@@ -536,15 +546,9 @@ class RegexSamlParser(BaseSamlParser):
         """
         raw_xml = self._saml
         if pretty:
-            try:
-                # TODO: Fix this or forget it
-                text_re = re.compile('>\n\s+([^<>\s].*?)\n\s+</', re.DOTALL)
-                pretty_xml = text_re.sub('>\g<1></', raw_xml.replace("\t", "").replace("\n", ""))
-                print(pretty_xml)
-                return pretty_xml
-            except Exception as e:
-                pass
-                # raise ValueError("Cannot pretty print")
+            # If we had to rely on this parser, there's not an easy way to
+            # pretty-print this badly-formed XML
+            return raw_xml
         return raw_xml
 
     def is_saml_request(self):
