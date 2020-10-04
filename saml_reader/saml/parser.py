@@ -58,6 +58,8 @@ class StandardSamlParser(BaseSamlParser):
                 try:
                     self.document = OneLogin_Saml2_XML.to_etree(self.response)
                 except etree.XMLSyntaxError:
+                    if self._used_relaxed_parser:
+                        raise SamlParsingError("Could not parse the XML data")
                     # Use a parser which attempts to recover bad XML
                     relaxed_xml_parser = etree.XMLParser(recover=False, resolve_entities=False)
                     lookup = etree.ElementDefaultClassLookup(element=RestrictedElement)
@@ -313,7 +315,7 @@ class RegexSamlParser(BaseSamlParser):
     relying on regex instead of an XML parser
     """
 
-    def __init__(self, response, url_decode=False):
+    def __init__(self, response):
         """
         Parses SAML response from XML input.
 
@@ -354,7 +356,7 @@ class RegexSamlParser(BaseSamlParser):
             (SamlParser) parsed SAML response object
         """
         # This just re-encodes the XML as base64 before passing it into constructor
-        return cls(utils.b64encode(xml))
+        return cls(xml)
 
     @classmethod
     def from_base64(cls, base64, url_decode=False):
