@@ -181,3 +181,13 @@ class BaseSamlParser(ABC):
             (bool) True if it is a request, False otherwise
         """
         pass
+
+    @abstractmethod
+    def found_any_values(self):
+        """
+        Checks to see if we were able to parse any values at all
+
+        Returns:
+            (bool) True if any values were able to be parsed, False otherwise
+        """
+        pass

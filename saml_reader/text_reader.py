@@ -58,9 +58,11 @@ class TextReader:
             raise ValueError(f"Invalid source: {source}")
 
         self._valid_saml = True
-        used_regex_parser = False
+        self._parser_used = 'strict'
         try:
             self._saml = self._parse_raw_data(input_type, raw_data)
+            if self._saml.used_relaxed_parser():
+                self._parser_used = 'relaxed'
         except SamlResponseEncryptedError:
             self._errors.append(
                 "SAML response is encrypted. Cannot parse.\n"
@@ -70,29 +72,35 @@ class TextReader:
             self._saml = None
             self._valid_saml = False
         except SamlParsingError:
-            self._errors.append("WARNING: XML parsing failed. Using fallback regex parser.\n"
-                                "Some values may not be able to be parsed.")
-            used_regex_parser = True
+            self._parser_used = 'regex'
             self._saml = self._parse_raw_data(input_type, raw_data,
                                               parser=RegexSamlParser)
 
-        if self._valid_saml:
-            if not used_regex_parser and not self._saml.is_assertion_found():
-                if self._saml.is_saml_request():
-                    self._errors.append(
-                        "The input data appears to be a SAML request instead of a SAML response.\n"
-                        "Please ask the customer for the SAML response instead of the request."
-                    )
-                else:
-                    self._errors.append("The SAML data does not contain any response data.")
-                self._valid_saml = False
+        if self._parser_used != 'strict':
+            self._errors.append(f"WARNING: XML parsing failed. Using fallback '{self._parser_used}' parser. "
+                                f"Some values may not parse correctly.\n")
+        if self._saml.is_saml_request():
+            self._errors.append(
+                "The input data appears to be a SAML request instead of a SAML response.\n"
+                "Please ask the customer for the SAML response instead of the request."
+            )
+            self._valid_saml = False
+
+        if not self._saml.found_any_values():
+            self._errors.append(
+                "Could not parse any relevant information from the input data.\n"
+                "Please make sure that your input contains SAML data."
+            )
+            self._valid_saml = False
 
         self._valid_cert = False
         self._cert = None
         if self._valid_saml:
-            try:
-                self._cert = Certificate(self._saml.get_certificate())
-            except ValueError:
+            raw_cert = self._saml.get_certificate()
+
+            if raw_cert:
+                self._cert = Certificate(raw_cert)
+            else:
                 self._errors.append(
                     "Could not locate certificate. Identity provider info will not be available."
                 )

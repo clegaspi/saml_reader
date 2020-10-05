@@ -341,10 +341,7 @@ class MongoVerifier:
         Returns:
             (`basestring` or `None`) Issuer URI, if found in the SAML response, otherwise None
         """
-        try:
-            return self._saml.get_issuer_uri()
-        except ValueError:
-            return None
+        return self._saml.get_issuer_uri()
 
     def verify_issuer_exists(self):
         """
@@ -384,10 +381,7 @@ class MongoVerifier:
         Returns:
             (`basestring` or `None`) Audience URL, if found in the SAML response, otherwise None
         """
-        try:
-            return self._saml.get_audience_url()
-        except ValueError:
-            return None
+        return self._saml.get_audience_url()
 
     def verify_audience_url_exists(self):
         """
@@ -427,10 +421,7 @@ class MongoVerifier:
         Returns:
             (`basestring` or `None`) ACS URL, if found in the SAML response, otherwise None
         """
-        try:
-            return self._saml.get_assertion_consumer_service_url()
-        except ValueError:
-            return None
+        return self._saml.get_assertion_consumer_service_url()
 
     def verify_assertion_consumer_service_url_exists(self):
         """
@@ -470,10 +461,7 @@ class MongoVerifier:
         Returns:
             (`basestring`) Encryption algorithm
         """
-        try:
-            return self._saml.get_encryption_algorithm()
-        except ValueError:
-            return None
+        return self._saml.get_encryption_algorithm()
 
     def verify_encryption_algorithm_exists(self):
         """
@@ -514,10 +502,7 @@ class MongoVerifier:
         Returns:
             (`basestring` or `None`) Name ID, if found in the SAML response, otherwise None
         """
-        try:
-            return self._saml.get_subject_name_id()
-        except ValueError:
-            return None
+        return self._saml.get_subject_name_id()
 
     def verify_name_id(self, expected_value):
         """
@@ -583,10 +568,7 @@ class MongoVerifier:
         Returns:
             (`basestring` or `None`) Name ID format, if found in the SAML response, otherwise None
         """
-        try:
-            return self._saml.get_subject_name_id_format()
-        except ValueError:
-            return None
+        return self._saml.get_subject_name_id_format()
 
     def verify_name_id_format_exists(self):
         """
@@ -611,7 +593,8 @@ class MongoVerifier:
         Get claim attribute names and values
 
         Returns:
-            (dict) Claim attribute values, keyed by claim name
+            (dict) Claim attribute values, keyed by claim name.
+                None if no attributes found.
         """
         return self._saml.get_attributes()
 
