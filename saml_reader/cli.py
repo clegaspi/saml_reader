@@ -4,7 +4,6 @@ user interaction/display.
 """
 import sys
 import json
-import re
 
 import argparse
 
