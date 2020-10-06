@@ -167,11 +167,11 @@ class TextReader:
             (ValueError) if an invalid `input_type` is specified
         """
         if input_type == 'base64':
-            return parser(data)
+            return parser.from_base64(data)
         if input_type == 'xml':
             return parser.from_xml(data)
         if input_type == 'har':
-            return parser(HarParser(data).parse())
+            return parser.from_base64(HarParser(data).parse())
         raise ValueError(f"Invalid data type specified: {input_type}")
 
     def get_saml(self):

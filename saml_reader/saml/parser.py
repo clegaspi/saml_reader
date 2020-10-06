@@ -304,10 +304,10 @@ class StandardSamlParser(BaseSamlParser):
         if pretty:
             try:
                 pretty_xml = etree.tostring(self._saml.document, pretty_print=True)
-                return pretty_xml
+                return str(pretty_xml)
             except etree.XMLSyntaxError:
                 raise ValueError("Cannot pretty print")
-        return self._saml.response
+        return str(self._saml.response)
 
     def is_saml_request(self):
         """
