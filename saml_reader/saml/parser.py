@@ -61,7 +61,7 @@ class StandardSamlParser(BaseSamlParser):
                     if self.used_relaxed_parser:
                         raise SamlParsingError("Could not parse the XML data")
                     # Use a parser which attempts to recover bad XML
-                    relaxed_xml_parser = etree.XMLParser(recover=False, resolve_entities=False)
+                    relaxed_xml_parser = etree.XMLParser(recover=True, resolve_entities=False)
                     lookup = etree.ElementDefaultClassLookup(element=RestrictedElement)
                     relaxed_xml_parser.set_element_class_lookup(lookup)
                     # Inject parser into the OLI class because there is no provided way to
