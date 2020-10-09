@@ -78,7 +78,7 @@ class StandardSamlParser(BaseSamlParser):
 
             if self.used_relaxed_parser:
                 # If the parser was relaxed, want to make sure we brute-force check.
-                encrypted_assertion_nodes = re.findall(r'</?EncryptedAssertion', self.response)
+                encrypted_assertion_nodes = re.findall(r'</?(?:saml.?:)?EncryptedAssertion', self.response)
             else:
                 encrypted_assertion_nodes = self.query('/samlp:Response/saml:EncryptedAssertion')
             if encrypted_assertion_nodes:

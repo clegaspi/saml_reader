@@ -79,14 +79,14 @@ class TextReader:
         if self._parser_used != 'strict':
             self._errors.append(f"WARNING: XML parsing failed. Using fallback '{self._parser_used}' parser. "
                                 f"Some values may not parse correctly.\n")
-        if self._saml.is_saml_request():
+        if self._valid_saml and self._saml.is_saml_request():
             self._errors.append(
                 "The input data appears to be a SAML request instead of a SAML response.\n"
                 "Please ask the customer for the SAML response instead of the request."
             )
             self._valid_saml = False
 
-        if not self._saml.found_any_values():
+        if self._valid_saml and not self._saml.found_any_values():
             self._errors.append(
                 "Could not parse any relevant information from the input data.\n"
                 "Please make sure that your input contains SAML data."
