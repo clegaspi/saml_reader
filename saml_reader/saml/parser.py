@@ -190,7 +190,6 @@ class StandardSamlParser(BaseSamlParser):
         Returns:
             (SamlParser) parsed SAML response object
         """
-        # This just re-encodes the XML as base64 before passing it into constructor
         return cls(xml)
 
     @classmethod
