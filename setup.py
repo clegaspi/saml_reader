@@ -17,5 +17,6 @@ setup(
             'haralyzer',
             'python3-saml',
             'cryptography',
+            'pydash'
       ]
 )

@@ -2,13 +2,14 @@
 This class handles reading in raw text to be prepped for interpretation by other classes
 """
 import sys
+from json.decoder import JSONDecodeError
 
 import pyperclip
 
 from saml_reader.cert import Certificate
 from saml_reader.saml.parser import RegexSamlParser, StandardSamlParser
-from saml_reader.saml.parser import SamlResponseEncryptedError, SamlParsingError, IsASamlRequest
-from saml_reader.har import HarParser
+from saml_reader.saml.parser import SamlResponseEncryptedError, SamlParsingError, IsASamlRequest, DataTypeInvalid
+from saml_reader.har import HarParser, HarParsingError, NoSAMLResponseFound
 
 
 class TextReader:
@@ -57,6 +58,9 @@ class TextReader:
         else:
             raise ValueError(f"Invalid source: {source}")
 
+        self._valid_cert = False
+        self._cert = None
+        self._saml = None
         self._valid_saml = True
         self._parser_used = 'strict'
         is_encrypted = False
@@ -70,14 +74,17 @@ class TextReader:
             self._parser_used = 'regex'
         except SamlResponseEncryptedError as e:
             is_encrypted = True
-            self._saml = None
             self._valid_saml = False
             self._parser_used = e.parser
         except IsASamlRequest as e:
             is_a_response = True
-            self._saml = None
             self._valid_saml = False
             self._parser_used = e.parser
+        except NoSAMLResponseFound:
+            self._valid_saml = False
+            self._errors.append("Could not find a SAML response in the HAR data.\n"
+                                "Please verify the input type and data is correct.")
+            return
 
         if self._parser_used == 'regex':
             try:
@@ -118,8 +125,6 @@ class TextReader:
             )
             self._valid_saml = False
 
-        self._valid_cert = False
-        self._cert = None
         if self._valid_saml:
             raw_cert = self._saml.get_certificate()
 
@@ -196,7 +201,11 @@ class TextReader:
         if input_type == 'xml':
             return parser.from_xml(data)
         if input_type == 'har':
-            return parser.from_base64(HarParser(data).parse())
+            try:
+                data = HarParser(data).parse()
+            except (JSONDecodeError, HarParsingError):
+                raise DataTypeInvalid()
+            return parser.from_base64(data)
         raise ValueError(f"Invalid data type specified: {input_type}")
 
     def get_saml(self):

@@ -7,6 +7,21 @@ import json
 from urllib.parse import unquote
 
 import haralyzer
+from pydash import get as nested_get
+
+
+class HarParsingError(Exception):
+    """
+    Custom exception raised when we get any error from the HAR parser
+    """
+    pass
+
+
+class NoSAMLResponseFound(Exception):
+    """
+    Custom exception if we don't find a SAML response
+    """
+    pass
 
 
 class HarParser(object):
@@ -24,6 +39,7 @@ class HarParser(object):
         #       to wrap the haralyzer package more thoroughly
         self.data = json.loads(data)
         self.parsed_data = None
+        self.errors = []
 
     def parse(self):
         """
@@ -32,21 +48,24 @@ class HarParser(object):
         Returns:
             (basestring): SAML response as base64 string
         """
-        parsed_har = haralyzer.HarParser(self.data)
+        try:
+            parsed_har = haralyzer.HarParser(self.data)
+        except Exception:
+            # This is a wide catch-all
+            raise HarParsingError("Could not parse the HAR data")
+
         responses = []
         for page in parsed_har.pages:
             for post in page.post_requests:
-                if 'params' not in post['request']['postData']:
-                    continue
-                for param in post['request']['postData']['params']:
+                for param in nested_get(post, 'request.postData.params', []):
                     if param['name'] == 'SAMLResponse':
                         responses.append(param['value'])
 
         if len(responses) > 1:
-            print("Multiple SAML responses found. Using the first one.")
+            self.errors.append("Multiple SAML responses found. Using the first one.")
 
         if not responses:
-            raise Exception("No SAML response found in the HAR file")
+            raise NoSAMLResponseFound("No SAML response found in the HAR file")
 
         self.parsed_data = unquote(responses[0])
         return self.parsed_data

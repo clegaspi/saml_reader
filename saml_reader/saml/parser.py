@@ -38,6 +38,12 @@ class SamlError(Exception):
         super().__init__(message)
 
 
+class DataTypeInvalid(Exception):
+    """
+    Custom exception raised when the input data doesn't appear to match the specified input type
+    """
+
+
 class SamlResponseEncryptedError(SamlError):
     """
     Custom exception type raised when SAML responses are encrypted
@@ -224,6 +230,9 @@ class StandardSamlParser(BaseSamlParser):
         Returns:
             (SamlParser) parsed SAML response object
         """
+        rx = r'[<>]'
+        if not re.match(rx, xml):
+            raise DataTypeInvalid("This does not appear to be XML")
         return cls(xml)
 
     @classmethod
@@ -238,8 +247,12 @@ class StandardSamlParser(BaseSamlParser):
         Returns:
             (SamlParser) parsed SAML response object
         """
-
-        return cls(utils.b64decode(base64 if not url_decode else unquote(base64)))
+        value = base64 if not url_decode else unquote(base64)
+        # Check to see if this is valid base64
+        rx = r'[^a-zA-Z0-9/?=]'
+        if re.search(rx, value):
+            raise DataTypeInvalid("This does not appear to be valid base64")
+        return cls(utils.b64decode(value))
 
     def get_certificate(self):
         """
@@ -453,6 +466,10 @@ class RegexSamlParser(BaseSamlParser):
         Returns:
             (SamlParser) parsed SAML response object
         """
+        # Check to see if this couldn't be XML
+        rx = r'[<>]'
+        if not re.search(rx, xml):
+            raise DataTypeInvalid("This does not appear to be XML")
         return cls(xml)
 
     @classmethod
@@ -468,7 +485,12 @@ class RegexSamlParser(BaseSamlParser):
             (SamlParser) parsed SAML response object
         """
 
-        return cls(utils.b64decode(base64 if not url_decode else unquote(base64)))
+        value = base64 if not url_decode else unquote(base64)
+        # Check to see if this is valid base64
+        rx = r'[^a-zA-Z0-9/?=]'
+        if re.search(rx, value):
+            raise DataTypeInvalid("This does not appear to be valid base64")
+        return cls(utils.b64decode(value))
 
     def get_certificate(self):
         """

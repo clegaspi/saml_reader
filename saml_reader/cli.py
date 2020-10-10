@@ -9,6 +9,7 @@ import argparse
 
 from saml_reader.text_reader import TextReader
 from saml_reader.mongo import MongoFederationConfig, MongoVerifier
+from saml_reader.saml.parser import DataTypeInvalid
 from saml_reader import __version__
 
 
@@ -70,7 +71,16 @@ def cli():
     print(f"Parsing SAML data...")
 
     # Parse saml data before prompting for input values to not risk clipboard being erased
-    saml_parser = TextReader(source, parsed_args.input_type, filename=filename)
+    try:
+        saml_parser = TextReader(source, parsed_args.input_type, filename=filename)
+    except DataTypeInvalid:
+        if parsed_args.input_type == 'har':
+            print("We could not find the correct data in the HAR data specified.\n"
+                  "Check to make sure that the input data is of the correct type.")
+        else:
+            print(f"The input data does not appear to be the specified input type '{parsed_args.input_type}'.\n"
+                  f"Check to make sure that the input data is of the correct type.")
+        return
 
     errors = saml_parser.get_errors()
     if errors:
