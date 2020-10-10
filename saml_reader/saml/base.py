@@ -173,16 +173,6 @@ class BaseSamlParser(ABC):
         pass
 
     @abstractmethod
-    def is_saml_request(self):
-        """
-        Determines if received SAML data is actually a SAML request instead of response
-
-        Returns:
-            (bool) True if it is a request, False otherwise
-        """
-        pass
-
-    @abstractmethod
     def found_any_values(self):
         """
         Checks to see if we were able to parse any values at all

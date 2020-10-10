@@ -7,7 +7,7 @@ import pyperclip
 
 from saml_reader.cert import Certificate
 from saml_reader.saml.parser import RegexSamlParser, StandardSamlParser
-from saml_reader.saml.parser import SamlResponseEncryptedError, SamlParsingError
+from saml_reader.saml.parser import SamlResponseEncryptedError, SamlParsingError, IsASamlRequest
 from saml_reader.har import HarParser
 
 
@@ -59,34 +59,59 @@ class TextReader:
 
         self._valid_saml = True
         self._parser_used = 'strict'
+        is_encrypted = False
+        is_a_response = False
+
         try:
             self._saml = self._parse_raw_data(input_type, raw_data)
             if self._saml.used_relaxed_parser():
                 self._parser_used = 'relaxed'
-        except SamlResponseEncryptedError:
+        except SamlParsingError:
+            self._parser_used = 'regex'
+        except SamlResponseEncryptedError as e:
+            is_encrypted = True
+            self._saml = None
+            self._valid_saml = False
+            self._parser_used = e.parser
+        except IsASamlRequest as e:
+            is_a_response = True
+            self._saml = None
+            self._valid_saml = False
+            self._parser_used = e.parser
+
+        if self._parser_used == 'regex':
+            try:
+                self._saml = self._parse_raw_data(input_type, raw_data,
+                                                  parser=RegexSamlParser)
+            except SamlResponseEncryptedError:
+                is_encrypted = True
+                self._saml = None
+                self._valid_saml = False
+            except IsASamlRequest:
+                is_a_response = True
+                self._saml = None
+                self._valid_saml = False
+
+        if self._parser_used != 'strict':
+            self._errors.append(f"WARNING: XML parsing failed. Using fallback '{self._parser_used}' parser. "
+                                f"Some values may not parse correctly.\n")
+
+        if is_encrypted:
             self._errors.append(
                 "SAML response is encrypted. Cannot parse.\n"
                 "Advise customer to update their identity provider "
                 "to send an unencrypted SAML response."
             )
-            self._saml = None
-            self._valid_saml = False
-        except SamlParsingError:
-            self._parser_used = 'regex'
-            self._saml = self._parse_raw_data(input_type, raw_data,
-                                              parser=RegexSamlParser)
+            return
 
-        if self._parser_used != 'strict':
-            self._errors.append(f"WARNING: XML parsing failed. Using fallback '{self._parser_used}' parser. "
-                                f"Some values may not parse correctly.\n")
-        if self._valid_saml and self._saml.is_saml_request():
+        if is_a_response:
             self._errors.append(
                 "The input data appears to be a SAML request instead of a SAML response.\n"
                 "Please ask the customer for the SAML response instead of the request."
             )
-            self._valid_saml = False
+            return
 
-        if self._valid_saml and not self._saml.found_any_values():
+        if not self._saml.found_any_values():
             self._errors.append(
                 "Could not parse any relevant information from the input data.\n"
                 "Please make sure that your input contains SAML data."

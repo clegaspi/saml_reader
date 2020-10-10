@@ -18,16 +18,43 @@ from defusedxml.lxml import RestrictedElement
 from saml_reader.saml.base import BaseSamlParser
 
 
-class SamlResponseEncryptedError(Exception):
+class SamlError(Exception):
+    """
+    Base exception type to require capture of parser type that raised the exception
+    """
+    def __init__(self, message, parser):
+        """
+        Create exception based on parser that raised it
+
+        Args:
+            message (basestring): exception message to show
+            parser (basestring): type of parser that raised the exception.
+                Should be one of the following:
+                - `'strict'`: standard XML parser
+                - `'relaxed'`: relaxed XML parser
+                - `'regex'`: regular expression-based parser
+        """
+        self.parser = parser
+        super().__init__(message)
+
+
+class SamlResponseEncryptedError(SamlError):
     """
     Custom exception type raised when SAML responses are encrypted
     """
     pass
 
 
-class SamlParsingError(Exception):
+class SamlParsingError(SamlError):
     """
     Custom exception type raised when SAML response could not be parsed by this parser
+    """
+    pass
+
+
+class IsASamlRequest(SamlError):
+    """
+    Custom exception type raised when SAML data is actually a request and not a response
     """
     pass
 
@@ -72,17 +99,24 @@ class StandardSamlParser(BaseSamlParser):
                 except AttributeError as e:
                     if e.args[0].endswith("'getroottree'"):
                         # Even the relaxed parser couldn't parse this. Parser fails.
-                        raise SamlParsingError("Could not parse the XML data")
+                        raise SamlParsingError("Could not parse the XML data",
+                                               'relaxed' if self.used_relaxed_parser else 'strict')
                     else:
                         raise e
 
             if self.used_relaxed_parser:
                 # If the parser was relaxed, want to make sure we brute-force check.
                 encrypted_assertion_nodes = re.findall(r'</?(?:saml.?:)?EncryptedAssertion', self.response)
+                saml_request_node = re.findall(r'<\/?(?:saml.{0,2}:)?AuthnRequest', self.response)
             else:
                 encrypted_assertion_nodes = self.query('/samlp:Response/saml:EncryptedAssertion')
+                saml_request_node = self.query('/samlp:AuthnRequest')
             if encrypted_assertion_nodes:
-                raise SamlResponseEncryptedError("SAML response is encrypted. Cannot parse without key")
+                raise SamlResponseEncryptedError("SAML response is encrypted. Cannot parse without key",
+                                                 'relaxed' if self.used_relaxed_parser else 'strict')
+            if saml_request_node:
+                raise IsASamlRequest("The SAML data contains a request and not a response",
+                                     'relaxed' if self.used_relaxed_parser else 'strict')
 
         def query_assertion(self, path):
             return self._OneLogin_Saml2_Response__query_assertion(path)
@@ -308,15 +342,6 @@ class StandardSamlParser(BaseSamlParser):
                 raise ValueError("Cannot pretty print")
         return str(self._saml.response)
 
-    def is_saml_request(self):
-        """
-        Determines if received SAML data is actually a SAML request instead of response
-
-        Returns:
-            (bool) True if it is a request, False otherwise
-        """
-        return "AuthnRequest" in self.get_xml()
-
     def found_any_values(self):
         """
         Checks to see if we were able to parse any values at all
@@ -346,8 +371,10 @@ class RegexSamlParser(BaseSamlParser):
         self._saml = str(response)
         self._saml_values = dict()
 
-        if self.is_encrypted():
-            raise SamlResponseEncryptedError("SAML response is encrypted. Cannot parse without key")
+        if self._is_encrypted():
+            raise SamlResponseEncryptedError("SAML response is encrypted. Cannot parse without key", 'regex')
+        if self._is_saml_request():
+            raise IsASamlRequest("The SAML data contains a request and not a response", 'regex')
 
         super().__init__()
         self._parse_saml_values()
@@ -391,14 +418,26 @@ class RegexSamlParser(BaseSamlParser):
             result = transform_by_field[field](result)
             self._saml_values[field] = result
 
-    def is_encrypted(self):
+    def _is_encrypted(self):
         """
         Determines if the SAML response is encrypted.
 
         Returns:
             (bool) True if encrypted, False otherwise
         """
-        rx = r"(?s)<\/?EncryptedAssertion"
+        rx = r"(?s)<\/?(?:saml.?:)?EncryptedAssertion"
+        result = re.findall(rx, self._saml)
+
+        return bool(result)
+
+    def _is_saml_request(self):
+        """
+        Determines if received SAML data is actually a SAML request instead of response
+
+        Returns:
+            (bool) True if it is a request, False otherwise
+        """
+        rx = r"<\/?(?:saml.{0,2}:)?AuthnRequest"
         result = re.findall(rx, self._saml)
 
         return bool(result)
@@ -534,15 +573,6 @@ class RegexSamlParser(BaseSamlParser):
             # pretty-print this badly-formed XML
             return raw_xml
         return raw_xml
-
-    def is_saml_request(self):
-        """
-        Determines if received SAML data is actually a SAML request instead of response
-
-        Returns:
-            (bool) True if it is a request, False otherwise
-        """
-        return "AuthnRequest" in self.get_xml()
 
     def found_any_values(self):
         """
