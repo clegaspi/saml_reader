@@ -72,8 +72,9 @@ def cli():
     # Parse saml data before prompting for input values to not risk clipboard being erased
     saml_parser = TextReader(source, parsed_args.input_type, filename=filename)
 
-    if not saml_parser.cert_is_valid():
-        for msg in saml_parser.get_errors():
+    errors = saml_parser.get_errors()
+    if errors:
+        for msg in errors:
             print(msg)
 
         if not saml_parser.saml_is_valid():
