@@ -2,7 +2,6 @@
 This class handles reading in raw text to be prepped for interpretation by other classes
 """
 import sys
-from json.decoder import JSONDecodeError
 
 import pyperclip
 
@@ -40,14 +39,14 @@ class TextReader:
             None
 
         Raises:
-            (ValueError) if the `source` or the `input_type` is invalid
+            (DataTypeInvalid) if the `source` or the `input_type` is invalid
         """
 
         self._errors = []
 
         input_type = input_type.lower()
         if input_type not in self.VALID_INPUT_TYPES:
-            raise ValueError(f"Invalid input type: {input_type}")
+            raise DataTypeInvalid(f"Invalid input type: {input_type}")
 
         if source == 'clip':
             raw_data = self._read_clipboard()
@@ -56,7 +55,7 @@ class TextReader:
         elif source == 'file':
             raw_data = self._read_file(filename)
         else:
-            raise ValueError(f"Invalid source: {source}")
+            raise DataTypeInvalid(f"Invalid source: {source}")
 
         self._valid_cert = False
         self._cert = None
@@ -179,8 +178,7 @@ class TextReader:
         data = "".join(sys.stdin.readlines())
         return data
 
-    @staticmethod
-    def _parse_raw_data(input_type, data, parser=StandardSamlParser):
+    def _parse_raw_data(self, input_type, data, parser=StandardSamlParser):
         """
         Parse various data types to return SAML response
 
@@ -191,10 +189,10 @@ class TextReader:
             parser (BaseSamlParser): parser class. Default: StandardSamlParser
 
         Returns:
-            (SamlParser) Object containing SAML data
+            (BaseSamlParser) Object containing SAML data
 
         Raises:
-            (ValueError) if an invalid `input_type` is specified
+            (DataTypeInvalid) if an invalid `input_type` is specified
         """
         if input_type == 'base64':
             return parser.from_base64(data)
@@ -202,18 +200,21 @@ class TextReader:
             return parser.from_xml(data)
         if input_type == 'har':
             try:
-                data = HarParser(data).parse()
-            except (JSONDecodeError, HarParsingError):
+                # TODO: Do the HAR parsing in the constructor?
+                har_parser = HarParser(data)
+                data = har_parser.parse()
+            except HarParsingError:
                 raise DataTypeInvalid()
+            self._errors.extend(har_parser.errors)
             return parser.from_base64(data)
-        raise ValueError(f"Invalid data type specified: {input_type}")
+        raise DataTypeInvalid(f"Invalid data type specified: {input_type}")
 
     def get_saml(self):
         """
         Gets parsed SAML object
 
         Returns:
-            (SamlParser) Object containing SAML data. Returns None if the SAML
+            (BaseSamlParser) Object containing SAML data. Returns None if the SAML
                 data could not be parsed because it was encrypted
         """
         return self._saml
