@@ -82,13 +82,11 @@ def cli():
                   f"Check to make sure that the input data is of the correct type.")
         return
 
-    errors = saml_parser.get_errors()
-    if errors:
-        for msg in errors:
-            print(msg)
+    for msg in saml_parser.get_errors():
+        print(msg)
 
-        if not saml_parser.saml_is_valid():
-            return
+    if not saml_parser.saml_is_valid():
+        return
 
     print(f"Done")
 
