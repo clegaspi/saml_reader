@@ -7,7 +7,6 @@ import json
 from urllib.parse import unquote
 
 import haralyzer
-from pydash import get as nested_get
 
 
 class HarParsingError(Exception):
@@ -60,7 +59,7 @@ class HarParser(object):
         responses = []
         for page in parsed_har.pages:
             for post in page.post_requests:
-                for param in nested_get(post, 'request.postData.params', []):
+                for param in post.get('request', {}).get('postData', {}).get('params', []):
                     if param['name'] == 'SAMLResponse':
                         responses.append(param['value'])
 

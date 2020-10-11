@@ -16,7 +16,6 @@ setup(
             'pyperclip',
             'haralyzer',
             'python3-saml',
-            'cryptography',
-            'pydash'
+            'cryptography'
       ]
 )
