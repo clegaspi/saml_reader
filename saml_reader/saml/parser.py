@@ -249,7 +249,7 @@ class StandardSamlParser(BaseSamlParser):
         """
         value = base64 if not url_decode else unquote(base64)
         # Check to see if this is valid base64
-        rx = r'[^a-zA-Z0-9/?=]'
+        rx = r'[^a-zA-Z0-9/+=]'
         if re.search(rx, value):
             raise DataTypeInvalid("This does not appear to be valid base64")
         return cls(utils.b64decode(value))
