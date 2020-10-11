@@ -203,8 +203,8 @@ class TextReader:
                 # TODO: Do the HAR parsing in the constructor?
                 har_parser = HarParser(data)
                 data = har_parser.parse()
-            except HarParsingError:
-                raise DataTypeInvalid()
+            except HarParsingError as e:
+                raise DataTypeInvalid(*e.args)
             self._errors.extend(har_parser.errors)
             return parser.from_base64(data)
         raise DataTypeInvalid(f"Invalid data type specified: {input_type}")
