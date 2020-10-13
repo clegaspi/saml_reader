@@ -13,9 +13,28 @@ from saml_reader.saml.parser import DataTypeInvalid
 from saml_reader import __version__
 
 
-def cli():
+def cli(cl_args):
     """
     Entrypoint for the command line interface. Handles parsing command line arguments.
+
+    Args:
+        cl_args: Command-line arguments. Possibilities:
+            - `<filepath>`: positional argument. Path to input file. If omitted,
+                data will be read in from stdin unless `--clip` is specified.
+            - `--stdin`: optional argument. Specifying will read data from stdin.
+            - `--clip`: optional argument. Specifying will read data from clipboard
+            - `--type <type>`: optional argument, default: 'xml'. Specifies the data type
+                to be read in. Must be one of: 'xml', 'base64', 'har'
+            - `--compare <file, optional>`: optional argument. Compare SAML data vs. data entered
+                by user. If no file is specified, application will prompt for values. If file
+                specified, must be JSON file which matches the attribute keys in
+                `mongo.VALIDATION_REGEX_BY_ATTRIB`
+            - `--summary`: optional argument. Will output a summary of relevant
+                data read from SAML response.
+            - `--summary-only`: optional argument. Only outputs summary info, does not perform
+                MongoDB Cloud tests
+            - `--version`: optional argument. Displays version information and exits.
+            - `--help`: optional argument. Displays help information and exits.
 
     Returns:
         None
@@ -51,7 +70,7 @@ def cli():
                         help='do not run MongoDB-specific validation, only output summary')
     parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
 
-    parsed_args = parser.parse_args(sys.argv[1:])
+    parsed_args = parser.parse_args(cl_args)
 
     if parsed_args.summary_only and parsed_args.compare is not None:
         print("ERROR: Cannot specify --compare and --summary-only")
@@ -235,4 +254,4 @@ def parse_comparison_values_from_json(filename):
 
 
 if __name__ == '__main__':
-    cli()
+    cli(sys.argv[1:])
