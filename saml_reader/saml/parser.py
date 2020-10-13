@@ -73,6 +73,12 @@ class StandardSamlParser(BaseSamlParser):
 
     class _OLISamlParser(OneLogin_Saml2_Response):
         def __init__(self, response):
+            """
+            Build OneLogin object manually.
+
+            Args:
+                response (basestring): SAML data as stringified XML document
+            """
             # This is basically a copy-paste of the parent class __init__()
             # with tweaks to handle the change in parser, etc.
 

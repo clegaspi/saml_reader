@@ -212,6 +212,7 @@ class MongoVerifier:
             # Runs tests on federated domain, if specified
             domains = self._comparison_values.get_value('domains')
             if domains:
+                # Verify name ID contains the federated domain
                 if not is_problem_with_name_id and not self.verify_name_id_contains_federated_domain():
                     err_msg = "The Name ID does not contain one of the federated domains specified:\n"
                     err_msg += f"Name ID value: {self.get_name_id()}\n"
@@ -223,6 +224,7 @@ class MongoVerifier:
                                "The source field may contain an internal username or other value instead."
                     self._errors.append(err_msg)
 
+                # Verify e-mail in SAML response contains federated domain
                 if self.get_claim_attributes().get('email') and \
                         not self.verify_email_contains_federated_domain():
                     err_msg = "The 'email' attribute does not contain one of the federated domains specified:\n"
@@ -239,6 +241,7 @@ class MongoVerifier:
                                "So only the Name ID must contain the domain."
                     self._errors.append(err_msg)
 
+                # Verify entered comparison value for e-mail contains federated domain
                 if self._comparison_values.get_value('email') and \
                         not self.verify_comparison_email_contains_federated_domain():
                     err_msg = "The specified comparison e-mail value does not contain\n" \
