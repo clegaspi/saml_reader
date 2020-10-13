@@ -69,7 +69,7 @@ def cli(cl_args):
                         dest='summary_only', action='store_true', required=False,
                         help='do not run MongoDB-specific validation, only output summary')
     parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
-
+    # TODO: Add XML pretty print option
     parsed_args = parser.parse_args(cl_args)
 
     if parsed_args.summary_only and parsed_args.compare is not None:
