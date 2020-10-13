@@ -122,8 +122,6 @@ def cli(cl_args):
     verifier = MongoVerifier(saml_parser.get_saml(),
                              saml_parser.get_certificate(),
                              comparison_values=federation_config)
-    # TODO: Remove after testing
-    verifier._saml.get_xml(pretty=True)
 
     if not parsed_args.summary_only:
         verifier.validate_configuration()
