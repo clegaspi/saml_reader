@@ -98,7 +98,8 @@ class StandardSamlParser(BaseSamlParser):
                     self.document = OneLogin_Saml2_XML.to_etree(self.response)
                 except etree.XMLSyntaxError:
                     if self.used_relaxed_parser:
-                        raise SamlParsingError("Could not parse the XML data")
+                        raise SamlParsingError("Could not parse the XML data",
+                                               'relaxed' if self.used_relaxed_parser else 'strict')
                     # Use a parser which attempts to recover bad XML
                     relaxed_xml_parser = etree.XMLParser(recover=True, resolve_entities=False)
                     lookup = etree.ElementDefaultClassLookup(element=RestrictedElement)
