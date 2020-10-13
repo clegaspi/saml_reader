@@ -14,7 +14,16 @@ VALIDATION_REGEX_BY_ATTRIB = {
     'issuer': r'^\s*\S+.*$',
     'acs': r'^https:\/\/auth\.mongodb\.com\/sso\/saml2\/[a-z0-9A-Z]{20}$',
     'audience': r'^https:\/\/www\.okta\.com\/saml2\/service-provider\/[a-z]{20}$',
-    'encryption': r'^(?i)sha-?(1|256)$'
+    'encryption': r'^(?i)sha-?(1|256)$',
+    'domains': r'(?i)([A-Z0-9.-]+?\.[A-Z]{2,}\s*)+'
+}
+
+ATTRIB_PARSING_FUNCS = {
+    'domains': lambda x: [v.lower() for v in re.findall(r'(?i)([A-Z0-9.-]+?\.[A-Z]{2,})\s*', x)],
+    'encryption': lambda x: "SHA" + re.findall(VALIDATION_REGEX_BY_ATTRIB['encryption'], x)[0],
+    'firstName': lambda x: x.strip(),
+    'lastName': lambda x: x.strip(),
+    'email': lambda x: x.strip()
 }
 
 
@@ -83,9 +92,12 @@ class MongoVerifier:
             None
         """
 
+        unparseable_parameters = set()
+
         # Check if Name ID exists
         is_problem_with_name_id = False
         if not self.verify_name_id_exists():
+            unparseable_parameters.add('name_id')
             is_problem_with_name_id = True
             self._errors.append(f"The Name ID is missing from the SAML Subject.\n"
                                 f"Please be sure the customer's identity provider is\n"
@@ -100,7 +112,11 @@ class MongoVerifier:
                                     f"Name ID: {self.get_name_id()}")
 
             # Verify Name ID format is valid
-            if not self.verify_name_id_format():
+            if not self.verify_name_id_format_exists():
+                unparseable_parameters.add('name_id_format')
+                err_msg = "The Name ID format could not be parsed from the SAML response."
+                self._errors.append(err_msg)
+            elif not self.verify_name_id_format():
                 is_problem_with_name_id = True
                 err_msg = "The Name ID format is not an acceptable format.\n"
                 err_msg += f"SAML value: {self.get_name_id_format()}\n"
@@ -141,22 +157,42 @@ class MongoVerifier:
                                     "email attribute will be the address where the user receives email messages.")
 
         # Verify Issuer URI matches regex
-        if not self.verify_issuer_pattern():
+        if not self.verify_issuer_exists():
+            unparseable_parameters.add('issuer')
+            err_msg = "The Issuer URI could not be parsed from the SAML response."
+            err_msg += "\nCannot run any verification tests for this parameter."
+            self._errors.append(err_msg)
+        elif not self.verify_issuer_pattern():
             self._errors.append(f"The Issuer URI does not match the anticipated pattern.\n"
                                 f"Issuer URI: {self.get_issuer()}")
 
         # Verify Audience URL matches regex
-        if not self.verify_audience_url_pattern():
+        if not self.verify_audience_url_exists():
+            unparseable_parameters.add('audience')
+            err_msg = "The Audience URL could not be parsed from the SAML response."
+            err_msg += "\nCannot run any verification tests for this parameter."
+            self._errors.append(err_msg)
+        elif not self.verify_audience_url_pattern():
             self._errors.append(f"The Audience URL does not match the anticipated pattern.\n"
                                 f"Audience URL: {self.get_audience_url()}")
 
         # Verify ACS URL matches regex
-        if not self.verify_assertion_consumer_service_url_pattern():
+        if not self.verify_assertion_consumer_service_url_exists():
+            unparseable_parameters.add('acs')
+            err_msg = "The Assertion Consumer Service URL could not be parsed from the SAML response."
+            err_msg += "\nCannot run any verification tests for this parameter."
+            self._errors.append(err_msg)
+        elif not self.verify_assertion_consumer_service_url_pattern():
             self._errors.append(f"The Assertion Consumer Service URL does not match the anticipated pattern.\n"
                                 f"ACS URL: {self.get_assertion_consumer_service_url()}")
 
         # Verify encryption algorithm matches regex (it should but you never know)
-        if not self.verify_encryption_algorithm_pattern():
+        if not self.verify_encryption_algorithm_exists():
+            unparseable_parameters.add('encryption')
+            err_msg = "The encryption algorithm could not be parsed from the SAML response."
+            err_msg += "\nCannot run any verification tests for this parameter."
+            self._errors.append(err_msg)
+        elif not self.verify_encryption_algorithm_pattern():
             self._errors.append(f"The encryption algorithm does not match the anticipated pattern.\n"
                                 f"Encryption Algorithm: {self.get_encryption_algorithm()}")
 
@@ -173,9 +209,54 @@ class MongoVerifier:
                            "email attribute will be the address where the user receives email messages."
                 self._errors.append(err_msg)
 
+            # Runs tests on federated domain, if specified
+            domains = self._comparison_values.get_value('domains')
+            if domains:
+                # Verify name ID contains the federated domain
+                if not is_problem_with_name_id and not self.verify_name_id_contains_federated_domain():
+                    err_msg = "The Name ID does not contain one of the federated domains specified:\n"
+                    err_msg += f"Name ID value: {self.get_name_id()}\n"
+                    err_msg += f"Specified valid domains:\n"
+                    for domain in domains:
+                        err_msg += f"- {domain}\n"
+                    err_msg += "If the Name ID does not contain a verified domain name, it may be because\n" \
+                               "the source Active Directory field does not contain the user's e-mail address.\n" \
+                               "The source field may contain an internal username or other value instead."
+                    self._errors.append(err_msg)
+
+                # Verify e-mail in SAML response contains federated domain
+                if self.get_claim_attributes().get('email') and \
+                        not self.verify_email_contains_federated_domain():
+                    err_msg = "The 'email' attribute does not contain one of the federated domains specified:\n"
+                    err_msg += f"SAML 'email' attribute value: {self.get_name_id()}\n"
+                    err_msg += f"Specified valid domains:\n"
+                    for domain in domains:
+                        err_msg += f"- {domain}\n"
+                    err_msg += "If the 'email' attribute does not contain a verified domain name, it may be because\n" \
+                               "the source Active Directory field does not contain the user's e-mail address.\n" \
+                               "The source field may contain an internal username or other value instead.\n"
+                    err_msg += "This is not necessarily an error, but may indicate there is a misconfiguration.\n" \
+                               "The value in Name ID will be the user's login username and the value in the\n" \
+                               "email attribute will be the address where the user receives email messages.\n" \
+                               "So only the Name ID must contain the domain."
+                    self._errors.append(err_msg)
+
+                # Verify entered comparison value for e-mail contains federated domain
+                if self._comparison_values.get_value('email') and \
+                        not self.verify_comparison_email_contains_federated_domain():
+                    err_msg = "The specified comparison e-mail value does not contain\n" \
+                              "one of the federated domains specified:\n"
+                    err_msg += f"Specified e-mail value: {self._comparison_values.get_value('email')}\n"
+                    err_msg += f"Specified valid domains:\n"
+                    for domain in domains:
+                        err_msg += f"- {domain}\n"
+                    err_msg += "If the e-mail specified is the user's MongoDB username, then the Atlas\n" \
+                               "identity provider configuration likely has the incorrect domain(s) verified."
+                    self._errors.append(err_msg)
+
             # Check Issuer URI matches provided value
             value = self._comparison_values.get_value('issuer')
-            if value and not self.verify_issuer(value):
+            if value and 'issuer' not in unparseable_parameters and not self.verify_issuer(value):
                 err_msg = "The Issuer URI in the SAML response does not match the specified comparison value:\n"
                 err_msg += f"SAML value: {self.get_issuer()}\n"
                 err_msg += f"Specified comparison value: {self._comparison_values.get_value('issuer')}"
@@ -185,7 +266,7 @@ class MongoVerifier:
 
             # Check Audience URL matches provided value
             value = self._comparison_values.get_value('audience')
-            if value and not self.verify_audience_url(value):
+            if value and 'audience' not in unparseable_parameters and not self.verify_audience_url(value):
                 err_msg = "The Audience URL in the SAML response does not match the specified comparison value:\n"
                 err_msg += f"SAML value: {self.get_audience_url()}\n"
                 err_msg += f"Specified comparison value: {self._comparison_values.get_value('audience')}"
@@ -195,7 +276,8 @@ class MongoVerifier:
 
             # Check ACS URL matches provided value
             value = self._comparison_values.get_value('acs')
-            if value and not self.verify_assertion_consumer_service_url(value):
+            if value and 'acs' not in unparseable_parameters and \
+                    not self.verify_assertion_consumer_service_url(value):
                 err_msg = "The Assertion Consumer Service URL in the SAML response does not match the " \
                           "specified comparison value:\n"
                 err_msg += f"SAML value: {self.get_assertion_consumer_service_url()}\n"
@@ -206,7 +288,8 @@ class MongoVerifier:
 
             # Check encryption matches provided value
             value = self._comparison_values.get_value('encryption')
-            if value and not self.verify_encryption_algorithm(value):
+            if value and 'encryption' not in unparseable_parameters and \
+                    not self.verify_encryption_algorithm(value):
                 err_msg = "The encryption algorithm for the SAML response does not " \
                           "match the specified comparison value:\n"
                 err_msg += f"SAML value: {self.get_encryption_algorithm()}\n"
@@ -261,10 +344,16 @@ class MongoVerifier:
         Returns:
             (`basestring` or `None`) Issuer URI, if found in the SAML response, otherwise None
         """
-        issuers = self._saml.get_issuers()
-        if issuers:
-            return issuers[0]
-        return None
+        return self._saml.get_issuer_uri()
+
+    def verify_issuer_exists(self):
+        """
+        Checks if Issuer URI was found in the SAML response.
+
+        Returns:
+            (bool) True if found, False otherwise
+        """
+        return self.get_issuer() is not None
 
     def verify_issuer(self, expected_value):
         """
@@ -295,10 +384,16 @@ class MongoVerifier:
         Returns:
             (`basestring` or `None`) Audience URL, if found in the SAML response, otherwise None
         """
-        audiences = self._saml.get_audiences()
-        if audiences:
-            return audiences[0]
-        return None
+        return self._saml.get_audience_url()
+
+    def verify_audience_url_exists(self):
+        """
+        Checks if Audience URL was found in the SAML response.
+
+        Returns:
+            (bool) True if found, False otherwise
+        """
+        return self.get_audience_url() is not None
 
     def verify_audience_url(self, expected_value):
         """
@@ -327,9 +422,18 @@ class MongoVerifier:
         Get Assertion Consumer Service (ACS) URL
 
         Returns:
-            (`basestring` or `None`) ACS URI, if found in the SAML response, otherwise None
+            (`basestring` or `None`) ACS URL, if found in the SAML response, otherwise None
         """
-        return self._saml.get_acs()
+        return self._saml.get_assertion_consumer_service_url()
+
+    def verify_assertion_consumer_service_url_exists(self):
+        """
+        Checks if Assertion Consumer Service URL was found in the SAML response.
+
+        Returns:
+            (bool) True if found, False otherwise
+        """
+        return self.get_assertion_consumer_service_url() is not None
 
     def verify_assertion_consumer_service_url(self, expected_value):
         """
@@ -362,6 +466,15 @@ class MongoVerifier:
         """
         return self._saml.get_encryption_algorithm()
 
+    def verify_encryption_algorithm_exists(self):
+        """
+        Checks if encryption algorithm was found in the SAML response.
+
+        Returns:
+            (bool) True if found, False otherwise
+        """
+        return self.get_encryption_algorithm() is not None
+
     def verify_encryption_algorithm(self, expected_value):
         """
         Checks encryption algorithm against expected value
@@ -392,15 +505,11 @@ class MongoVerifier:
         Returns:
             (`basestring` or `None`) Name ID, if found in the SAML response, otherwise None
         """
-        try:
-            name_id = self._saml.get_subject_nameid()
-        except ValueError:
-            return None
-        return name_id
+        return self._saml.get_subject_name_id()
 
     def verify_name_id(self, expected_value):
         """
-        Checks Name ID against expected value
+        Checks Name ID against expected value (case-insensitive)
 
         Args:
             expected_value (basestring): expected Name ID
@@ -408,7 +517,7 @@ class MongoVerifier:
         Returns:
             (bool) True if they match, False otherwise
         """
-        return self.get_name_id() == expected_value
+        return self.get_name_id().lower() == expected_value.lower()
 
     def verify_name_id_exists(self):
         """
@@ -427,6 +536,16 @@ class MongoVerifier:
             (bool) True if matches the regex, False otherwise
         """
         return self._matches_regex(EMAIL_REGEX_MATCH, self.get_name_id())
+
+    def verify_name_id_contains_federated_domain(self):
+        """
+        Checks if Name ID contains one of the federated domains specified
+
+        Returns:
+            (bool) True if Name ID ends with one of the domains, False otherwise
+        """
+        return any(self.get_name_id().lower().endswith(domain)
+                   for domain in self._comparison_values.get_value('domains'))
 
     @staticmethod
     def _matches_regex(regex, value):
@@ -452,11 +571,16 @@ class MongoVerifier:
         Returns:
             (`basestring` or `None`) Name ID format, if found in the SAML response, otherwise None
         """
-        try:
-            name_id_format = self._saml.get_subject_nameid_format()
-        except ValueError:
-            return None
-        return name_id_format
+        return self._saml.get_subject_name_id_format()
+
+    def verify_name_id_format_exists(self):
+        """
+        Checks if Name ID Format was found in the SAML response.
+
+        Returns:
+            (bool) True if found, False otherwise
+        """
+        return self.get_name_id_format() is not None
 
     def verify_name_id_format(self):
         """
@@ -472,9 +596,10 @@ class MongoVerifier:
         Get claim attribute names and values
 
         Returns:
-            (dict) Claim attribute values, keyed by claim name
+            (dict) Claim attribute values, keyed by claim name.
+                None if no attributes found.
         """
-        return {k: v[0] if v else "" for k, v in self._saml.get_attributes().items()}
+        return self._saml.get_attributes()
 
     def verify_response_has_required_claim_attributes(self):
         """
@@ -507,7 +632,7 @@ class MongoVerifier:
 
     def verify_name_id_and_email_are_the_same(self):
         """
-        Check if Name ID and email values from SAML response match. This is not
+        Check if Name ID and email values from SAML response match (case-insensitive). This is not
         a hard requirement, but is typical and a mismatch may indicate an incorrect
         configuration.
 
@@ -518,11 +643,11 @@ class MongoVerifier:
         name_id = self.get_name_id()
         email = self.get_claim_attributes().get("email")
 
-        return name_id and email and name_id == email
+        return name_id and email and name_id.lower() == email.lower()
 
     def verify_claim_attributes_against_comparison_values(self):
         """
-        Check required and optional claim attributes against provided values. Check is only
+        Check required and optional claim attributes against provided values (case-insensitive). Check is only
         performed if a comparison value is provided.
 
         Returns:
@@ -534,9 +659,30 @@ class MongoVerifier:
         for attrib in all_acceptable_attributes:
             if attrib in claim_attributes:
                 comparison_value = self._comparison_values.get_value(attrib)
-                if comparison_value and claim_attributes[attrib] != comparison_value:
+                if comparison_value and claim_attributes[attrib].lower() != comparison_value.lower():
                     invalid_attributes.add(attrib)
         return invalid_attributes
+
+    def verify_email_contains_federated_domain(self):
+        """
+        Checks if email attribute contains one of the federated domains specified
+
+        Returns:
+            (bool) True if email contains ends with one of the domains, False otherwise
+        """
+        return any(self.get_claim_attributes()['email'].lower().endswith(domain)
+                   for domain in self._comparison_values.get_value('domains'))
+
+    def verify_comparison_email_contains_federated_domain(self):
+        """
+        Checks if the email value entered for comparison contains one of the
+        federated domains specified
+
+        Returns:
+            (bool) True if email contains ends with one of the domains, False otherwise
+        """
+        return any(self._comparison_values.get_value('email').lower().endswith(domain)
+                   for domain in self._comparison_values.get_value('domains'))
 
     def get_error_messages(self):
         """
@@ -566,6 +712,8 @@ class MongoFederationConfig:
                 - `firstName`: expected value for "firstName" claim attribute
                 - `lastName`: expected value for "lastName" claim attribute
                 - `email`: expected value for Name ID and "email" claim attribute
+                - `domains`: domain names associated with the identity provider, as a
+                    string. Multiple domains separated by whitespace.
         """
         self._settings = dict()
         if kwargs:
@@ -616,6 +764,9 @@ class MongoFederationConfig:
 
         if name in VALIDATION_REGEX_BY_ATTRIB:
             if re.fullmatch(VALIDATION_REGEX_BY_ATTRIB[name], value):
+                if name in ATTRIB_PARSING_FUNCS:
+                    # Check if we need to parse the value
+                    value = ATTRIB_PARSING_FUNCS[name](value)
                 self._settings[name] = value
             else:
                 raise ValueError(f"Attribute '{name}' did not pass input validation")

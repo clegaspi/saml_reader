@@ -2,6 +2,8 @@
 This module implements features related to parsing certificate contents retrieved from
 SAML responses.
 """
+from itertools import zip_longest
+
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 
@@ -16,12 +18,16 @@ class Certificate(object):
         Creates certificate object from raw certificate content (without header/footer)
 
         Args:
-            cert_string: certificate contents without header/footer
+            cert_string: certificate contents
         """
-        # TODO: Update this with kwarg to add header/footer to make more extensible
-        full_cert = '-----BEGIN CERTIFICATE-----\n' + cert_string + \
-                    '\n-----END CERTIFICATE-----'
-        decoded_cert = x509.load_pem_x509_certificate(bytes(full_cert, 'utf-8'),
+
+        # This formats the raw certificate string into lines of 64 characters
+        cert_string = cert_string.replace('\n', '')
+        cert_string = "\n".join(["".join(v) for v in zip_longest(*[iter(cert_string)] * 64, fillvalue='')])
+        # This adds the header and footer
+        cert_string = '-----BEGIN CERTIFICATE-----\n' + cert_string + \
+                      '\n-----END CERTIFICATE-----'
+        decoded_cert = x509.load_pem_x509_certificate(bytes(cert_string, 'utf-8'),
                                                       default_backend())
         self._certificate = decoded_cert
 

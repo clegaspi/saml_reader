@@ -4,18 +4,37 @@ user interaction/display.
 """
 import sys
 import json
-import re
 
 import argparse
 
 from saml_reader.text_reader import TextReader
 from saml_reader.mongo import MongoFederationConfig, MongoVerifier
+from saml_reader.saml.parser import DataTypeInvalid
 from saml_reader import __version__
 
 
-def cli():
+def cli(cl_args):
     """
     Entrypoint for the command line interface. Handles parsing command line arguments.
+
+    Args:
+        cl_args (iterable): Command-line arguments. Possibilities:
+            - `<filepath>`: positional argument. Path to input file. If omitted,
+                data will be read in from stdin unless `--clip` is specified.
+            - `--stdin`: optional argument. Specifying will read data from stdin.
+            - `--clip`: optional argument. Specifying will read data from clipboard
+            - `--type <type>`: optional argument, default: 'xml'. Specifies the data type
+                to be read in. Must be one of: 'xml', 'base64', 'har'
+            - `--compare <file, optional>`: optional argument. Compare SAML data vs. data entered
+                by user. If no file is specified, application will prompt for values. If file
+                specified, must be JSON file which matches the attribute keys in
+                `mongo.VALIDATION_REGEX_BY_ATTRIB`
+            - `--summary`: optional argument. Will output a summary of relevant
+                data read from SAML response.
+            - `--summary-only`: optional argument. Only outputs summary info, does not perform
+                MongoDB Cloud tests
+            - `--version`: optional argument. Displays version information and exits.
+            - `--help`: optional argument. Displays help information and exits.
 
     Returns:
         None
@@ -50,8 +69,8 @@ def cli():
                         dest='summary_only', action='store_true', required=False,
                         help='do not run MongoDB-specific validation, only output summary')
     parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
-
-    parsed_args = parser.parse_args(sys.argv[1:])
+    # TODO: Add XML pretty print option
+    parsed_args = parser.parse_args(cl_args)
 
     if parsed_args.summary_only and parsed_args.compare is not None:
         print("ERROR: Cannot specify --compare and --summary-only")
@@ -71,14 +90,22 @@ def cli():
     print(f"Parsing SAML data...")
 
     # Parse saml data before prompting for input values to not risk clipboard being erased
-    saml_parser = TextReader(source, parsed_args.input_type, filename=filename)
+    try:
+        saml_parser = TextReader(source, parsed_args.input_type, filename=filename)
+    except DataTypeInvalid:
+        if parsed_args.input_type == 'har':
+            print("We could not find the correct data in the HAR data specified.\n"
+                  "Check to make sure that the input data is of the correct type.")
+        else:
+            print(f"The input data does not appear to be the specified input type '{parsed_args.input_type}'.\n"
+                  f"Check to make sure that the input data is of the correct type.")
+        return
 
-    if not saml_parser.cert_is_valid():
-        for msg in saml_parser.get_errors():
-            print(msg)
+    for msg in saml_parser.get_errors():
+        print(msg)
 
-        if not saml_parser.saml_is_valid():
-            return
+    if not saml_parser.saml_is_valid():
+        return
 
     print(f"Done")
 
@@ -144,23 +171,22 @@ def display_summary(verifier):
               f"(from certificate):"
               f"\n{verifier.get_identity_provider()}")
         print("---")
-    print(f"ISSUER URI:"
-          f"\n{verifier.get_issuer()}")
+    print(f"ASSERTION CONSUMER SERVICE URL:"
+          f"\n{verifier.get_assertion_consumer_service_url() or '(this value is missing)'}")
     print("---")
     print(f"AUDIENCE URL:"
-          f"\n{verifier.get_audience_url()}")
+          f"\n{verifier.get_audience_url() or '(this value is missing)'}")
     print("---")
-    print(f"ASSERTION CONSUMER SERVICE URL:"
-          f"\n{verifier.get_assertion_consumer_service_url()}")
+    print(f"ISSUER URI:"
+          f"\n{verifier.get_issuer() or '(this value is missing)'}")
     print("---")
     print(f"ENCRYPTION ALGORITHM:"
-          f"\n{verifier.get_encryption_algorithm().upper()}")
+          f"\n{verifier.get_encryption_algorithm() or '(this value is missing)'}")
     print("---")
     print(f"NAME ID:"
           f"\nValue: {verifier.get_name_id() or '(this value is missing)'}"
           f"\nFormat: {verifier.get_name_id_format() or '(this value is missing)'}")
     print("---")
-
     # Checking for the required attributes for MongoDB Cloud
     print(f"ATTRIBUTES:")
     for name, value in verifier.get_claim_attributes().items():
@@ -186,7 +212,9 @@ def prompt_for_comparison_values():
         ('email', "Customer Email Address: "),
         ('acs', "MongoDB Assertion Consumer Service URL: "),
         ('audience', "MongoDB Audience URL: "),
+        ('domains', "Domain(s) associated with IdP\n(if multiple, separate by a space): "),
         ('issuer', "IdP Issuer URI: "),
+        ('encryption', "Encryption Algorithm (""SHA1"" or ""SHA256""): ")
     ]
 
     for name, prompt in prompt_by_value_name:
@@ -201,18 +229,6 @@ def prompt_for_comparison_values():
                 else:
                     raise e
 
-    encryption = None
-    while not encryption:
-        encryption_string = input("Encryption Algorithm (""SHA1"" or ""SHA256""): ")
-        if encryption_string == "":
-            break
-        encryption = re.findall(r'(?i)SHA-?(1|256)', encryption_string)
-        if not encryption:
-            print("Invalid encryption value. Must be ""SHA1"" or ""SHA256""")
-        else:
-            # This is meant to convert "sha-256" to "SHA256" in case someone entered that
-            encryption = "SHA" + encryption[0]
-    federation_config.set_value('encryption', encryption)
     print("------------")
 
     return federation_config
@@ -231,13 +247,9 @@ def parse_comparison_values_from_json(filename):
     """
     with open(filename, 'r') as f:
         comparison_values = json.load(f)
-
-    if 'encryption' in comparison_values:
-        # This is meant to convert "sha-256" to "SHA256" for consistency
-        comparison_values['encryption'] = comparison_values['encryption'].upper().replace("-", "")
     federation_config = MongoFederationConfig(**comparison_values)
     return federation_config
 
 
 if __name__ == '__main__':
-    cli()
+    cli(sys.argv[1:])
