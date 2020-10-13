@@ -18,7 +18,7 @@ def cli(cl_args):
     Entrypoint for the command line interface. Handles parsing command line arguments.
 
     Args:
-        cl_args: Command-line arguments. Possibilities:
+        cl_args (iterable): Command-line arguments. Possibilities:
             - `<filepath>`: positional argument. Path to input file. If omitted,
                 data will be read in from stdin unless `--clip` is specified.
             - `--stdin`: optional argument. Specifying will read data from stdin.
