@@ -251,5 +251,9 @@ def parse_comparison_values_from_json(filename):
     return federation_config
 
 
-if __name__ == '__main__':
+def start_saml_reader():
     cli(sys.argv[1:])
+
+
+if __name__ == '__main__':
+    start_saml_reader()

@@ -11,7 +11,7 @@ setup(
       author_email='christian.legaspi@mongodb.com',
       url='https://github.com/clegaspi/saml_reader',
       packages=find_packages(),
-      entry_points={"console_scripts": ["saml_reader=saml_reader.cli:cli"]},
+      entry_points={"console_scripts": ["saml_reader=saml_reader.cli:start_saml_reader"]},
       install_requires=[
             'pyperclip',
             'haralyzer',
