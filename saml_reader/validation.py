@@ -121,16 +121,15 @@ class TestSuite:
             self._results[test] = test.status
 
     def _get_next_test(self):
-        tests_remain = True
-        while tests_remain:
-            tests_to_run = [
-                test for test, n_unmet_dependencies in self._test_graph.in_degree
-                if n_unmet_dependencies == 0 and test.status == TEST_NOT_RUN
-            ]
-            if not tests_to_run:
-                tests_remain = False
-            else:
-                yield from tests_to_run
+        def __yield_tests_rec(graph):
+            tests = [test for test, n_unmet_dependencies in graph.in_degree
+                     if n_unmet_dependencies == 0 and test.status == TEST_NOT_RUN]
+            if not tests:
+                return
+            yield from tests
+            yield from __yield_tests_rec(graph)
+
+        yield from __yield_tests_rec(self._test_graph)
 
     def has_run(self):
         return self._has_run
