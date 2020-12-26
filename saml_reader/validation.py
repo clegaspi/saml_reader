@@ -1,9 +1,11 @@
 """
-Validation classes
+These classes implement a graph-based approach to running a battery of validation tests
+where one test can depend on the pass/fail state of another test.
 """
 
 import networkx as nx
 
+# Test completion states
 TEST_PASS = 1
 TEST_FAIL = 0
 TEST_NOT_RUN = -1
@@ -43,7 +45,7 @@ class TestDefinition:
                 raise ValueError(f"Missing context values for test: {missing_context}")
         result = self._func({x: context[x] for x in self.required_context})
         if isinstance(result, tuple):
-            self.status = result[0]
+            self.status = bool(result[0])
             self._result_metadata = result[1:]
         else:
             self.status = int(bool(result))
