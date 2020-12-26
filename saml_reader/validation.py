@@ -4,14 +4,14 @@ Validation classes
 
 import networkx as nx
 
-PASS = 1
-FAIL = 0
-NOT_RUN = -1
+TEST_PASS = 1
+TEST_FAIL = 0
+TEST_NOT_RUN = -1
 
 
 class TestDefinition:
     def __init__(self, title, test_function, dependencies=None, required_context=None):
-        self.status = NOT_RUN
+        self.status = TEST_NOT_RUN
         self.dependencies = set(dependencies) if dependencies else set()
         self.title = title or ""
         self.required_context = set(required_context) if required_context else set()
@@ -57,7 +57,6 @@ class TestDefinition:
         raise NotImplemented
 
     def __hash__(self):
-        # This is bad hash right now
         return hash(self.title)
 
 
@@ -109,15 +108,11 @@ class TestSuite:
                 self._test_graph.add_edge(test_lookup[dependency], test)
 
     def _run_suite(self):
-        tests_to_run = self._get_next_set_of_tests()
         count = 1
-        while tests_to_run:
-            # print(f"Round {count}")
-            for test in tests_to_run:
-                # print(f"Running test {test.title}")
-                if test.run(self._context):
-                    self._test_graph.remove_node(test)
-            tests_to_run = self._get_next_set_of_tests()
+        for test in self._get_next_test():
+            # print(f"Running test {test.title}")
+            if test.run(self._context):
+                self._test_graph.remove_node(test)
             count += 1
 
         self._results = dict()
@@ -125,9 +120,17 @@ class TestSuite:
             # print(f"Test: {test.title}, Result: {test.status}")
             self._results[test] = test.status
 
-    def _get_next_set_of_tests(self):
-        return [test for test, n_unmet_dependencies in self._test_graph.in_degree
-                if n_unmet_dependencies == 0 and test.status == NOT_RUN]
+    def _get_next_test(self):
+        tests_remain = True
+        while tests_remain:
+            tests_to_run = [
+                test for test, n_unmet_dependencies in self._test_graph.in_degree
+                if n_unmet_dependencies == 0 and test.status == TEST_NOT_RUN
+            ]
+            if not tests_to_run:
+                tests_remain = False
+            else:
+                yield from tests_to_run
 
     def has_run(self):
         return self._has_run

@@ -2,7 +2,7 @@
 These classes handle all data validation specific to MongoDB Cloud
 """
 import re
-from saml_reader.validation import TestDefinition, TestSuite, FAIL
+from saml_reader.validation import TestDefinition, TestSuite, TEST_FAIL
 
 """Regular expression to match (most) valid e-mail addresses"""
 EMAIL_REGEX_MATCH = r"\b(?i)([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})\b"
@@ -212,7 +212,7 @@ class MongoVerifier:
         results = test_suite.get_results()
         messages_to_add = [
             failure_messages[test] for test, result in results.items()
-            if result == FAIL and test in failure_messages
+            if result == TEST_FAIL and test in failure_messages
         ]
         self._errors.extend(messages_to_add)
 
