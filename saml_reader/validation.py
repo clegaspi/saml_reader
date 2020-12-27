@@ -14,7 +14,17 @@ TEST_NOT_RUN = -1
 class TestDefinition:
     def __init__(self, title, test_function, dependencies=None, required_context=None):
         self.status = TEST_NOT_RUN
-        self.dependencies = set(dependencies) if dependencies else set()
+        self.dependencies = dict()
+        for dependency in dependencies or []:
+            if isinstance(dependency, (str, TestDefinition)):
+                self.dependencies[dependency] = TEST_PASS
+            elif isinstance(dependency, tuple):
+                if len(dependency) != 2:
+                    raise ValueError("Dependency must be a 2-length tuple, str, or TestDefinition")
+                test, required_result = dependency
+                if required_result not in (TEST_PASS, TEST_FAIL):
+                    raise ValueError("Dependency result must be TEST_PASS or TEST_FAIL")
+                self.dependencies[test] = required_result
         self.title = title or ""
         self.required_context = set(required_context) if required_context else set()
         if not callable(test_function):
@@ -22,12 +32,12 @@ class TestDefinition:
         self._func = test_function
         self._result_metadata = None
 
-    def add_dependency(self, dependency):
-        self.dependencies.add(dependency)
+    def add_dependency(self, dependency, required_result=TEST_PASS):
+        self.dependencies[dependency] = required_result
 
     def remove_dependency(self, dependency):
         if dependency in self.dependencies:
-            self.dependencies.remove(dependency)
+            self.dependencies.pop(dependency)
 
     def add_required_context_value(self, context):
         self.required_context.add(context)
@@ -61,6 +71,21 @@ class TestDefinition:
     def __hash__(self):
         return hash(self.title)
 
+    def __str__(self):
+        return self.title
+
+    def __repr__(self):
+        return self.title
+
+
+class _FailedTest(TestDefinition):
+    def __init__(self, test_to_monitor):
+        super().__init__(
+            f"Blocker for tests depending on failure of: {test_to_monitor}",
+            lambda x: TEST_FAIL,
+            dependencies=[test_to_monitor]
+        )
+
 
 class TestSuite:
     def __init__(self):
@@ -78,7 +103,7 @@ class TestSuite:
     def all_dependent_test_in_suite(self):
         return all(dependency in self._tests
                    for test in self._tests
-                   for dependency in test.dependencies)
+                   for dependency in test.dependencies.keys())
 
     def add_test(self, test: TestDefinition, replace=True):
         if not replace and test in self._tests:
@@ -103,32 +128,53 @@ class TestSuite:
         self._has_run = True
 
     def _build_graph(self):
-        self._test_graph.add_nodes_from(self._tests)
-        test_lookup = {test.title: test for test in self._tests}
         for test in self._tests:
-            for dependency in test.dependencies:
-                self._test_graph.add_edge(test_lookup[dependency], test)
+            node_name = "PASS_" + test.title
+            self._test_graph.add_node(node_name, test_object=test)
+
+        for test in self._tests:
+            for dependency, required_result in test.dependencies.items():
+                child_node_name = "PASS_" + test.title
+                if required_result == TEST_PASS:
+                    parent_node_name = "PASS_" + str(dependency)
+                elif required_result == TEST_FAIL:
+                    parent_node_name = "FAIL_" + str(dependency)
+                    self._test_graph.add_node(
+                        parent_node_name,
+                        test_object=_FailedTest(dependency)
+                    )
+                    self._test_graph.add_edge("PASS_" + str(dependency), parent_node_name)
+                else:
+                    raise ValueError("Invalid required test result!")
+                self._test_graph.add_edge(parent_node_name, child_node_name)
 
     def _run_suite(self):
-        count = 1
         for test in self._get_next_test():
-            # print(f"Running test {test.title}")
-            if test.run(self._context):
-                self._test_graph.remove_node(test)
-            count += 1
+            print(f"Running test {test.title}")
+            test.run(self._context)
+            print(f"Test: {test.title}, Result: {test.status}")
 
         self._results = dict()
         for test in self._tests:
-            # print(f"Test: {test.title}, Result: {test.status}")
             self._results[test] = test.status
 
     def _get_next_test(self):
         def __yield_tests_rec(graph):
-            tests = [test for test, n_unmet_dependencies in graph.in_degree
-                     if n_unmet_dependencies == 0 and test.status == TEST_NOT_RUN]
-            if not tests:
+            queue_for_removal = set()
+            for test_name, n_unmet_dependencies in graph.in_degree:
+                test_object = graph.nodes[test_name]['test_object']
+                if n_unmet_dependencies == 0 and test_object.status == TEST_NOT_RUN:
+                    yield test_object
+                    if test_object.status == TEST_PASS:
+                        queue_for_removal.add(test_name)
+                    elif test_object.status == TEST_FAIL:
+                        queue_for_removal.add("FAIL_" + str(test_object))
+                    else:
+                        raise ValueError("Invalid test result")
+            if not queue_for_removal:
                 return
-            yield from tests
+            graph.remove_nodes_from(queue_for_removal)
+            queue_for_removal.clear()
             yield from __yield_tests_rec(graph)
 
         yield from __yield_tests_rec(self._test_graph)
