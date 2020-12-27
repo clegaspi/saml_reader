@@ -305,7 +305,7 @@ class TestSuite:
                     # If a test requires that another test fail,
                     # create an interim node to block traversal if the
                     # dependent test passes. This node will be removed if
-                    # the dependent test passes.
+                    # the dependent test fails to allow child tests to run.
                     parent_node_name = "FAIL_" + str(dependency)
                     self._test_graph.add_node(
                         parent_node_name,
