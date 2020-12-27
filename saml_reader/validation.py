@@ -150,13 +150,11 @@ class TestSuite:
 
     def _run_suite(self):
         for test in self._get_next_test():
-            print(f"Running test {test.title}")
+            # print(f"Running test {test.title}")
             test.run(self._context)
-            print(f"Test: {test.title}, Result: {test.status}")
+            # print(f"Test: {test.title}, Result: {test.status}")
 
-        self._results = dict()
-        for test in self._tests:
-            self._results[test] = test.status
+        self._results = {test: test.status for test in self._tests}
 
     def _get_next_test(self):
         def __yield_tests_rec(graph):
