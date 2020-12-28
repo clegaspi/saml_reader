@@ -330,9 +330,9 @@ class StandardSamlParser(BaseSamlParser):
         Retrieves the identity provider's claim attributes.
 
         Returns:
-            (dict) Claim attribute values keyed by attribute name, None if no attributes were found
+            (dict) Claim attribute values keyed by attribute name, empty dict if no attributes were found
         """
-        return self._saml_values.get('attributes')
+        return self._saml_values.get('attributes') or dict()
 
     def is_assertion_found(self):
         """
@@ -569,9 +569,9 @@ class RegexSamlParser(BaseSamlParser):
         Retrieves the identity provider's claim attributes.
 
         Returns:
-            (dict) Claim attribute values keyed by attribute name, None if no values found
+            (dict) Claim attribute values keyed by attribute name, empty dict if no values found
         """
-        return self._saml_values.get('attributes')
+        return self._saml_values.get('attributes') or dict()
 
     def is_assertion_found(self):
         """

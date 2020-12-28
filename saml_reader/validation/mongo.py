@@ -2,7 +2,7 @@
 These classes handle all data validation specific to MongoDB Cloud
 """
 import re
-from saml_reader.validation import TestDefinition, TestSuite, TEST_FAIL
+from saml_reader.validation.validation import TestDefinition, TestSuite, TEST_FAIL
 
 """Regular expression to match (most) valid e-mail addresses"""
 EMAIL_REGEX_MATCH = r"\b(?i)([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})\b"
@@ -53,168 +53,52 @@ class MongoVerifier:
         return self._cert is not None
 
     def validate_configuration(self):
-        test_suite = MongoTestSuite().get_suite()
-        test_suite.set_context({
-            'saml': self._saml,
-            'comparison_values': self._comparison_values
-        })
-        if not test_suite.all_dependent_test_in_suite() or \
-                not test_suite.context_satisfies_requirements():
-            raise ValueError("Test suite is missing dependent tests or context values")
+        """
+        Run validation tests on the loaded SAML data and comparison values.
 
+        Returns:
+            None
+        """
+        self._errors = []
+        test_suite = MongoTestSuite(self._saml, self._comparison_values)
         test_suite.run()
         self._build_report(test_suite)
         self._validated = True
 
     def _build_report(self, test_suite):
-        # Some templated message text
-        def __get_claim_attribute_exist(attribute_name):
-            return f"The required '{attribute_name}' claim attribute is missing " + \
-                   "or is misspelled (case matters!)"
+        """
+        Compiles error messages based on validation test results.
 
-        def __get_claim_attribute_regex(attribute_name):
-            return f"The required '{attribute_name}' claim attribute does not " + \
-                   "appear to be formatted correctly.\nValue: " + \
-                   f"{self.get_claim_attributes().get(attribute_name)}"
+        Args:
+            test_suite (MongoTestSuite): test suite run on SAML data
 
-        def __get_claim_attribute_mismatch(attribute_name):
-            return f"The required '{attribute_name}' claim attribute does not match " + \
-                   "the value entered for comparison." + \
-                   f"\nSAML value: {self.get_claim_attributes().get(attribute_name)}" + \
-                   f"\nSpecified comparison value: {self._comparison_values.get_value(attribute_name)}" + \
-                   "\nGenerally, this means that the identity provider configuration needs\n" + \
-                   "to be reconfigured to match the expected values"
+        Returns:
+            None
+        """
 
-        failure_messages = {
-            'exists_name_id':
-                f"The Name ID is missing from the SAML Subject.\n"
-                f"Please be sure the customer's identity provider is\n"
-                f"emitting this attribute (it is not emitted by default for Microsoft ADFS)",
-            'regex_name_id':
-                f"The Name ID does not appear to be an email address.\n"
-                f"Name ID: {self.get_name_id()}",
+        # We want to build the report in the order of how the tests are
+        # shown in the list of tests in MongoTestSuite so that results are
+        # printed together for related tests.
 
-            'exists_name_id_format':
-                "The Name ID format could not be parsed from the SAML response.",
-            'regex_name_id_format':
-                f"The Name ID format is not an acceptable format.\n" +
-                f"SAML value: {self.get_name_id_format()}\n" +
-                f"Acceptable formats:" +
-                ("\n - {}" * len(MongoTestSuite.VALID_NAME_ID_FORMATS)).format(
-                    *MongoTestSuite.VALID_NAME_ID_FORMATS),
-            'exists_first_name': __get_claim_attribute_exist('firstName'),
-            'regex_first_name': __get_claim_attribute_regex('firstName'),
-            'compare_first_name': __get_claim_attribute_mismatch("firstName"),
-            'exists_last_name': __get_claim_attribute_exist('lastName'),
-            'regex_last_name': __get_claim_attribute_regex('lastName'),
-            'compare_last_name': __get_claim_attribute_mismatch("lastName"),
-            'exists_email': __get_claim_attribute_exist('email'),
-            'regex_email': __get_claim_attribute_regex('email'),
-            'compare_email': __get_claim_attribute_mismatch("email"),
-            'compare_domain_email':
-                "The 'email' attribute does not contain one of the federated domains specified:\n" +
-                f"SAML 'email' attribute value: {self.get_name_id()}\n" +
-                f"Specified valid domains:\n" +
-                ("- {}\n" * len(self._comparison_values.get_value('domains', []))).format(
-                    *self._comparison_values.get_value('domains', [])
-                ) +
-                "If the 'email' attribute does not contain a verified domain name, it may be because\n" +
-                "the source Active Directory field does not contain the user's e-mail address.\n" +
-                "The source field may contain an internal username or other value instead.\n" +
-                "This is not necessarily an error, but may indicate there is a misconfiguration.\n" +
-                "The value in Name ID will be the user's login username and the value in the\n" +
-                "email attribute will be the address where the user receives email messages.\n" +
-                "So only the Name ID must contain the domain.",
-            'compare_domain_comparison_email':
-                "The specified comparison e-mail value does not contain\n" +
-                "one of the federated domains specified:\n" +
-                f"Specified e-mail value: {self._comparison_values.get_value('email')}\n" +
-                f"Specified valid domains:\n" +
-                ("- {}\n" * len(self._comparison_values.get_value('domains', []))).format(
-                    *self._comparison_values.get_value('domains', [])
-                ) +
-                "If the e-mail specified is the user's MongoDB username, then the Atlas\n" +
-                "identity provider configuration likely has the incorrect domain(s) verified.",
-            'compare_domain_name_id':
-                "The Name ID does not contain one of the federated domains specified:\n" +
-                f"Name ID value: {self.get_name_id()}\n" +
-                f"Specified valid domains:\n" +
-                ("- {}\n" * len(self._comparison_values.get_value('domains', []))).format(
-                    *self._comparison_values.get_value('domains', [])
-                ) +
-                "If the Name ID does not contain a verified domain name, it may be because\n" +
-                "the source Active Directory field does not contain the user's e-mail address.\n" +
-                "The source field may contain an internal username or other value instead.",
-            'compare_email_name_id':
-                "The Name ID does not match the provided e-mail value:\n" +
-                f"Name ID value: {self.get_name_id()}\n" +
-                f"Specified email value: {self._comparison_values.get_value('email')}" +
-                "\nThis is not necessarily an error, but may indicate there is a misconfiguration.\n" +
-                "The value in Name ID will be the user's login username and the value in the\n" +
-                "email attribute will be the address where the user receives email messages.",
-            'match_name_id_email_in_saml':
-                "The Name ID and email attributes are not the same. This is not\n" +
-                "necessarily an error, but may indicate there is a misconfiguration.\n" +
-                "The value in Name ID will be the user's login username and the value in the\n" +
-                "email attribute will be the address where the user receives email messages.",
-            'exists_issuer':
-                "The Issuer URI could not be parsed from the SAML response." +
-                "\nCannot run any verification tests for this parameter.",
-            'regex_issuer':
-                f"The Issuer URI does not match the anticipated pattern.\n" +
-                f"Issuer URI: {self.get_issuer()}",
-            'match_issuer':
-                "The Issuer URI in the SAML response does not match the specified comparison value:\n" +
-                f"SAML value: {self.get_issuer()}\n" +
-                f"Specified comparison value: {self._comparison_values.get_value('issuer')}" +
-                "\nGenerally, this means that the Atlas configuration needs " +
-                "to be set to match the SAML value",
-            'exists_audience':
-                "The Audience URL could not be parsed from the SAML response." +
-                "\nCannot run any verification tests for this parameter.",
-            'regex_audience':
-                f"The Audience URL does not match the anticipated pattern.\n" +
-                f"Audience URL: {self.get_audience_url()}",
-            'match_audience':
-                "The Audience URL in the SAML response does not match the specified comparison value:\n" +
-                f"SAML value: {self.get_audience_url()}\n" +
-                f"Specified comparison value: {self._comparison_values.get_value('audience')}" +
-                "\nGenerally, this means that the Atlas configuration needs " +
-                "to be set to match the SAML value",
-            'exists_acs':
-                "The Assertion Consumer Service URL could not be parsed from the SAML response." +
-                "\nCannot run any verification tests for this parameter.",
-            'regex_acs':
-                f"The Assertion Consumer Service URL does not match the anticipated pattern.\n" +
-                f"ACS URL: {self.get_assertion_consumer_service_url()}",
-            'match_acs':
-                "The Assertion Consumer Service URL in the SAML response does not match the " +
-                "specified comparison value:\n" +
-                f"SAML value: {self.get_assertion_consumer_service_url()}\n" +
-                f"Specified comparison value: {self._comparison_values.get_value('acs')}" +
-                "\nThis means that the identity provider configuration needs\n" +
-                "to be reconfigured to match the expected value",
-            'exists_encryption':
-                "The encryption algorithm could not be parsed from the SAML response." +
-                "\nCannot run any verification tests for this parameter.",
-            'regex_encryption':
-                f"The encryption algorithm does not match the anticipated pattern.\n" +
-                f"Encryption Algorithm: {self.get_encryption_algorithm()}",
-            'match_encryption':
-                "The encryption algorithm for the SAML response does not " +
-                "match the specified comparison value:\n" +
-                f"SAML value: {self.get_encryption_algorithm()}\n" +
-                f"Specified comparison value: " +
-                f"{self._comparison_values.get_value('encryption')}" +
-                "\nGenerally, this means that the Atlas configuration needs " +
-                "to be set to match the SAML value"
-        }
-        results = test_suite.get_results()
-        messages_to_add = [
-            failure_messages[test] for test, result in results.items()
-            if result == TEST_FAIL and test in failure_messages
+        test_results = test_suite.get_results()
+
+        # Get list of failed tests in order
+        failed_tests = [
+            test for test in test_suite.get_list_of_mongo_tests()
+            if test_results.get(test) == TEST_FAIL
         ]
-        self._errors.extend(messages_to_add)
+
+        # Get the report messages for the failed tests
+        messages = ValidationReport(
+            self._saml, self._comparison_values
+        ).get_messages_by_name(
+            failed_tests
+        )
+
+        # Write report messages in order, filtering out any tests with no messages
+        self._errors = [
+            messages[test] for test in failed_tests if messages[test]
+        ]
 
     def validated(self):
         """
@@ -312,7 +196,7 @@ class MongoVerifier:
             (`set` of `basestring`) names of missing required attributes
         """
         attribs = self.get_claim_attributes()
-        missing_required_attributes = self.REQUIRED_CLAIMS - set(attribs.keys())
+        missing_required_attributes = MongoTestSuite.REQUIRED_CLAIMS - set(attribs.keys())
         return missing_required_attributes
 
     def get_error_messages(self):
@@ -414,9 +298,9 @@ class MongoFederationConfig:
             raise ValueError(f"Unknown attribute name: {name}")
 
 
-class MongoTestSuite:
+class MongoTestSuite(TestSuite):
     """
-    Test suite for SAML responses for comparison against known patterns and comparison values
+    Test suite for SAML responses for comparison against known patterns and comparison values.
 
     Attributes:
         VALID_NAME_ID_FORMATS (`set` of `basestring`): acceptable formats for Name ID for MongoDB Cloud
@@ -442,12 +326,37 @@ class MongoTestSuite:
         # There are no currently supported optional claims
     }
 
-    def __init__(self):
-        self._suite = None
+    def __init__(self, saml, comparison_values=None):
+        """
+        Create test suite with supplied SAML and comparison data.
+
+        Args:
+            saml (BaseSamlParser): parsed SAML data
+            comparison_values (MongoFederationConfig): comparison values to
+                compare with data in SAML response. Default: None (no comparison
+                tests will be performed)
+        """
+        super().__init__()
+        self.set_context({
+            'saml': saml,
+            'comparison_values': comparison_values or MongoFederationConfig()
+        })
+        self._tests = self._get_tests()
 
     @staticmethod
     def _get_tests():
+        """
+        Builds test objects for testing SAML data for patterns specific to MongoDB Cloud
+        and against supplied comparison values.
+
+        Any future tests should be added to this function in an order which makes logical sense
+        with the tests around it.
+
+        Returns:
+            (`list` of `TestDefinition`) test objects
+        """
         tests = [
+            # Name ID and Name ID format tests
             TestDefinition("exists_name_id", MongoTestSuite.verify_name_id_exists,
                            required_context=['saml']),
             TestDefinition("regex_name_id", MongoTestSuite.verify_name_id_pattern,
@@ -460,6 +369,7 @@ class MongoTestSuite:
                            dependencies=['exists_name_id_format'],
                            required_context=['saml']),
 
+            # Claim attribute tests
             TestDefinition("exists_first_name", MongoTestSuite.verify_first_name_exists,
                            required_context=['saml']),
             TestDefinition("regex_first_name", MongoTestSuite.verify_first_name_pattern,
@@ -476,6 +386,7 @@ class MongoTestSuite:
                            dependencies=['exists_email'],
                            required_context=['saml']),
 
+            # Claim attribute comparison tests
             TestDefinition("exists_comparison_first_name", MongoTestSuite.verify_first_name_comparison_exists,
                            dependencies=['regex_first_name'],
                            required_context=['comparison_values']),
@@ -495,6 +406,7 @@ class MongoTestSuite:
                            dependencies=['exists_comparison_email'],
                            required_context=['saml', 'comparison_values']),
 
+            # Federated domain tests
             TestDefinition("exists_comparison_domain", MongoTestSuite.verify_domain_comparison_exists,
                            required_context=['comparison_values']),
             TestDefinition("compare_domain_email", MongoTestSuite.verify_domain_in_email,
@@ -507,6 +419,7 @@ class MongoTestSuite:
                            dependencies=['regex_name_id', 'exists_comparison_domain'],
                            required_context=['saml', 'comparison_values']),
 
+            # Email and Name ID comparison tests
             TestDefinition("compare_email_name_id", MongoTestSuite.verify_name_id,
                            dependencies=['regex_name_id', 'exists_comparison_email'],
                            required_context=['saml', 'comparison_values']),
@@ -514,6 +427,7 @@ class MongoTestSuite:
                            dependencies=['regex_email', 'regex_name_id'],
                            required_context=['saml']),
 
+            # Issuer URI tests
             TestDefinition("exists_issuer", MongoTestSuite.verify_issuer_exists,
                            required_context=['saml']),
             TestDefinition("regex_issuer", MongoTestSuite.verify_issuer_pattern,
@@ -526,6 +440,7 @@ class MongoTestSuite:
                            dependencies=['exists_comparison_issuer'],
                            required_context=['saml', 'comparison_values']),
 
+            # Audience URL tests
             TestDefinition("exists_audience", MongoTestSuite.verify_audience_url_exists,
                            required_context=['saml']),
             TestDefinition("regex_audience", MongoTestSuite.verify_audience_url_pattern,
@@ -537,6 +452,8 @@ class MongoTestSuite:
             TestDefinition("match_audience", MongoTestSuite.verify_audience_url,
                            dependencies=['exists_comparison_audience'],
                            required_context=['saml', 'comparison_values']),
+
+            # ACS URL tests
             TestDefinition("exists_acs", MongoTestSuite.verify_assertion_consumer_service_url_exists,
                            required_context=['saml']),
             TestDefinition("regex_acs", MongoTestSuite.verify_assertion_consumer_service_url_pattern,
@@ -549,6 +466,8 @@ class MongoTestSuite:
             TestDefinition("match_acs", MongoTestSuite.verify_assertion_consumer_service_url,
                            dependencies=['exists_comparison_acs'],
                            required_context=['saml', 'comparison_values']),
+
+            # Encryption algorithm tests
             TestDefinition("exists_encryption", MongoTestSuite.verify_encryption_algorithm_exists,
                            required_context=['saml']),
             TestDefinition("regex_encryption", MongoTestSuite.verify_encryption_algorithm_pattern,
@@ -564,13 +483,14 @@ class MongoTestSuite:
         ]
         return tests
 
-    def get_suite(self):
-        if not self._suite:
-            self._suite = TestSuite()
-            for test in self._get_tests():
-                self._suite.add_test(test)
+    def get_list_of_mongo_tests(self):
+        """
+        Get name of tests in order listed. Useful for compiling reports.
 
-        return self._suite
+        Returns:
+            (`list` of `basestring`) test titles in order
+        """
+        return [test.title for test in self._tests]
 
     @staticmethod
     def _matches_regex(regex, value):
@@ -1065,3 +985,219 @@ class MongoTestSuite:
         """
         return any(context.get('comparison_values').get_value('email').lower().endswith(domain)
                    for domain in context.get('comparison_values').get_value('domains'))
+
+
+class ValidationReport:
+    """
+    Generate validation report text for tests that fail.
+
+    All future tests that need reporting should be added in this class.
+    """
+    def __init__(self, saml, comparison_values):
+        """
+        Build reporter object.
+
+        Args:
+            saml (BaseSamlParser): parsed SAML data
+            comparison_values (MongoFederationConfig): comparison data
+        """
+        self._saml = saml
+        self._comparison_values: MongoFederationConfig = comparison_values
+        self._messages = None
+        self._compile_messages()
+
+    def get_all_messages(self):
+        """
+        Shows all possible messages that can be reported.
+
+        Returns:
+            (dict) messages keyed by test name
+        """
+        return self._messages
+
+    def get_messages_by_name(self, tests):
+        """
+        Get report messages for the tests named.
+
+        Args:
+            tests (`list` of `basestring` or `TestDefinition`): tests on which
+                reporting is to be done
+
+        Returns:
+            (dict) messages for the tests listed, keyed by value in list
+        """
+        return {test: self._messages.get(test, "") for test in tests}
+
+    # These classes are for generating templated text for claim attributes
+    @staticmethod
+    def _get_claim_attribute_exist(attribute_name):
+        return f"The required '{attribute_name}' claim attribute is missing " + \
+               "or is misspelled (case matters!)"
+
+    def _get_claim_attribute_regex(self, attribute_name):
+        return f"The required '{attribute_name}' claim attribute does not " + \
+               "appear to be formatted correctly.\nValue: " + \
+               f"{self._saml.get_attributes().get(attribute_name)}"
+
+    def _get_claim_attribute_mismatch(self, attribute_name):
+        return f"The required '{attribute_name}' claim attribute does not match " + \
+               "the value entered for comparison." + \
+               f"\nSAML value: {self._saml.get_attributes().get(attribute_name)}" + \
+               f"\nSpecified comparison value: {self._comparison_values.get_value(attribute_name)}" + \
+               "\nGenerally, this means that the identity provider configuration needs\n" + \
+               "to be reconfigured to match the expected values"
+
+    def _compile_messages(self):
+        """
+        Generates messages for failed tests based on provided SAML and comparison data.
+
+        Any future tests that require a report be generated should they fail should have
+        an entry added to the `messages` dict with the test name as the key.
+
+        Any templated text can be added as class functions.
+
+        Returns:
+            None
+        """
+        messages = {
+            # Name ID tests
+            'exists_name_id':
+                f"The Name ID is missing from the SAML Subject.\n"
+                f"Please be sure the customer's identity provider is\n"
+                f"emitting this attribute (it is not emitted by default for Microsoft ADFS)",
+            'regex_name_id':
+                f"The Name ID does not appear to be an email address.\n"
+                f"Name ID: {self._saml.get_subject_name_id()}",
+
+            # Name ID Format tests
+            'exists_name_id_format':
+                "The Name ID format could not be parsed from the SAML response.",
+            'regex_name_id_format':
+                f"The Name ID format is not an acceptable format.\n" +
+                f"SAML value: {self._saml.get_subject_name_id_format()}\n" +
+                f"Acceptable formats:" +
+                ("\n - {}" * len(MongoTestSuite.VALID_NAME_ID_FORMATS)).format(
+                    *MongoTestSuite.VALID_NAME_ID_FORMATS),
+
+            # Claim attribute tests
+            'exists_first_name': self._get_claim_attribute_exist('firstName'),
+            'regex_first_name': self._get_claim_attribute_regex('firstName'),
+            'compare_first_name': self._get_claim_attribute_mismatch("firstName"),
+            'exists_last_name': self._get_claim_attribute_exist('lastName'),
+            'regex_last_name': self._get_claim_attribute_regex('lastName'),
+            'compare_last_name': self._get_claim_attribute_mismatch("lastName"),
+            'exists_email': self._get_claim_attribute_exist('email'),
+            'regex_email': self._get_claim_attribute_regex('email'),
+            'compare_email': self._get_claim_attribute_mismatch("email"),
+
+            # Federated domain tests
+            'compare_domain_email':
+                "The 'email' attribute does not contain one of the federated domains specified:\n" +
+                f"SAML 'email' attribute value: {self._saml.get_subject_name_id()}\n" +
+                f"Specified valid domains:\n" +
+                ("- {}\n" * len(self._comparison_values.get_value('domains', []))).format(
+                    *self._comparison_values.get_value('domains', [])
+                ) +
+                "If the 'email' attribute does not contain a verified domain name, it may be because\n" +
+                "the source Active Directory field does not contain the user's e-mail address.\n" +
+                "The source field may contain an internal username or other value instead.\n" +
+                "This is not necessarily an error, but may indicate there is a misconfiguration.\n" +
+                "The value in Name ID will be the user's login username and the value in the\n" +
+                "email attribute will be the address where the user receives email messages.\n" +
+                "So only the Name ID must contain the domain.",
+            'compare_domain_comparison_email':
+                "The specified comparison e-mail value does not contain\n" +
+                "one of the federated domains specified:\n" +
+                f"Specified e-mail value: {self._comparison_values.get_value('email')}\n" +
+                f"Specified valid domains:\n" +
+                ("- {}\n" * len(self._comparison_values.get_value('domains', []))).format(
+                    *self._comparison_values.get_value('domains', [])
+                ) +
+                "If the e-mail specified is the user's MongoDB username, then the Atlas\n" +
+                "identity provider configuration likely has the incorrect domain(s) verified.",
+            'compare_domain_name_id':
+                "The Name ID does not contain one of the federated domains specified:\n" +
+                f"Name ID value: {self._saml.get_subject_name_id()}\n" +
+                f"Specified valid domains:\n" +
+                ("- {}\n" * len(self._comparison_values.get_value('domains', []))).format(
+                    *self._comparison_values.get_value('domains', [])
+                ) +
+                "If the Name ID does not contain a verified domain name, it may be because\n" +
+                "the source Active Directory field does not contain the user's e-mail address.\n" +
+                "The source field may contain an internal username or other value instead.",
+
+            # Email and Name ID tests
+            'compare_email_name_id':
+                "The Name ID does not match the provided e-mail value:\n" +
+                f"Name ID value: {self._saml.get_subject_name_id()}\n" +
+                f"Specified email value: {self._comparison_values.get_value('email')}" +
+                "\nThis is not necessarily an error, but may indicate there is a misconfiguration.\n" +
+                "The value in Name ID will be the user's login username and the value in the\n" +
+                "email attribute will be the address where the user receives email messages.",
+            'match_name_id_email_in_saml':
+                "The Name ID and email attributes are not the same. This is not\n" +
+                "necessarily an error, but may indicate there is a misconfiguration.\n" +
+                "The value in Name ID will be the user's login username and the value in the\n" +
+                "email attribute will be the address where the user receives email messages.",
+
+            # Issuer URI tests
+            'exists_issuer':
+                "The Issuer URI could not be parsed from the SAML response." +
+                "\nCannot run any verification tests for this parameter.",
+            'regex_issuer':
+                f"The Issuer URI does not match the anticipated pattern.\n" +
+                f"Issuer URI: {self._saml.get_issuer_uri()}",
+            'match_issuer':
+                "The Issuer URI in the SAML response does not match the specified comparison value:\n" +
+                f"SAML value: {self._saml.get_issuer_uri()}\n" +
+                f"Specified comparison value: {self._comparison_values.get_value('issuer')}" +
+                "\nGenerally, this means that the Atlas configuration needs " +
+                "to be set to match the SAML value",
+
+            # Audience URL tests
+            'exists_audience':
+                "The Audience URL could not be parsed from the SAML response." +
+                "\nCannot run any verification tests for this parameter.",
+            'regex_audience':
+                f"The Audience URL does not match the anticipated pattern.\n" +
+                f"Audience URL: {self._saml.get_audience_url()}",
+            'match_audience':
+                "The Audience URL in the SAML response does not match the specified comparison value:\n" +
+                f"SAML value: {self._saml.get_audience_url()}\n" +
+                f"Specified comparison value: {self._comparison_values.get_value('audience')}" +
+                "\nGenerally, this means that the Atlas configuration needs " +
+                "to be set to match the SAML value",
+
+            # ACS URL tests
+            'exists_acs':
+                "The Assertion Consumer Service URL could not be parsed from the SAML response." +
+                "\nCannot run any verification tests for this parameter.",
+            'regex_acs':
+                f"The Assertion Consumer Service URL does not match the anticipated pattern.\n" +
+                f"ACS URL: {self._saml.get_assertion_consumer_service_url()}",
+            'match_acs':
+                "The Assertion Consumer Service URL in the SAML response does not match the " +
+                "specified comparison value:\n" +
+                f"SAML value: {self._saml.get_assertion_consumer_service_url()}\n" +
+                f"Specified comparison value: {self._comparison_values.get_value('acs')}" +
+                "\nThis means that the identity provider configuration needs\n" +
+                "to be reconfigured to match the expected value",
+
+            # Encryption algorithm tests
+            'exists_encryption':
+                "The encryption algorithm could not be parsed from the SAML response." +
+                "\nCannot run any verification tests for this parameter.",
+            'regex_encryption':
+                f"The encryption algorithm does not match the anticipated pattern.\n" +
+                f"Encryption Algorithm: {self._saml.get_encryption_algorithm()}",
+            'match_encryption':
+                "The encryption algorithm for the SAML response does not " +
+                "match the specified comparison value:\n" +
+                f"SAML value: {self._saml.get_encryption_algorithm()}\n" +
+                f"Specified comparison value: " +
+                f"{self._comparison_values.get_value('encryption')}" +
+                "\nGenerally, this means that the Atlas configuration needs " +
+                "to be set to match the SAML value"
+        }
+
+        self._messages = messages

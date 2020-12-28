@@ -258,6 +258,16 @@ class TestSuite:
         if test in self._tests:
             self._tests.remove(test)
 
+    def get_context(self):
+        """
+        Get the context values for the test suite that will be passed to each
+        test.
+
+        Returns:
+            (dict) context values, keyed by context variable names. Empty dict if none.
+        """
+        return self._context or dict()
+
     def set_context(self, context):
         """
         Set the context values for the test suite that will be passed to each
