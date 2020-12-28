@@ -547,7 +547,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) True if they match, False otherwise
         """
-        return context.get('saml').get_issuer_uri() == context.get_value('issuer')
+        return context.get('saml').get_issuer_uri() == context.get('comparison_values').get_value('issuer')
 
     @staticmethod
     def verify_issuer_pattern(context):
