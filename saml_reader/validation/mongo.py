@@ -32,7 +32,7 @@ class MongoVerifier:
         parameters.
 
         Args:
-            saml (SamlParser): SAML response
+            saml (BaseSamlParser): SAML response
             cert (Certificate, optional): Certificate information
             comparison_values (MongoFederationConfig, optional): user-entered values to check
                 against SAML data
