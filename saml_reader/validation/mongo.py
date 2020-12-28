@@ -248,7 +248,7 @@ class MongoFederationConfig:
 
         Args:
             value_name (basestring): name of comparison value keyword
-            default: the value returned if the comparison value is not populated. Default: None
+            default (object, optional): the value returned if the comparison value is not populated. Default: None
 
         Returns:
             (`basestring` or `None`) comparison value, `None` if name does not exist
@@ -332,7 +332,7 @@ class MongoTestSuite(TestSuite):
 
         Args:
             saml (BaseSamlParser): parsed SAML data
-            comparison_values (MongoFederationConfig): comparison values to
+            comparison_values (MongoFederationConfig, optional): comparison values to
                 compare with data in SAML response. Default: None (no comparison
                 tests will be performed)
         """
@@ -1002,7 +1002,7 @@ class ValidationReport:
             comparison_values (MongoFederationConfig): comparison data
         """
         self._saml = saml
-        self._comparison_values: MongoFederationConfig = comparison_values
+        self._comparison_values = comparison_values
         self._messages = None
         self._compile_messages()
 

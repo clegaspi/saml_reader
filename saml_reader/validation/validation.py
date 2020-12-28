@@ -27,12 +27,12 @@ class TestDefinition:
                 value, which will be cast as a boolean to determine pass/fail. If multiple values
                 are returned, the first value will be used to determine the test result, and the
                 rest will be stored and can be retrieved with `get_result_metadata()`.
-            dependencies (`iterable` of `basestring`, `TestDefinition` or `tuple`): an iterable
+            dependencies (`iterable` of `basestring`, `TestDefinition` or `tuple`, optional): an iterable
                 containing test titles (as strings), test definitions (as `TestDefinition`), or
                 two-member tuples, where the first element is a title or test definition and the
                 second element is the required outcome of that test (TEST_PASS or TEST_FAIL).
                 For titles and definitions, the default required outcome is TEST_PASS. Default: None.
-            required_context (`iterable` of `basestring`): an iterable containing names of keys expected
+            required_context (`iterable` of `basestring`, optional): an iterable containing names of keys expected
                 by the test in the context data. Default: None.
         """
         self.status = TEST_NOT_RUN
@@ -66,7 +66,7 @@ class TestDefinition:
         Args:
             dependency (`basestring` or `TestDefinition`): Test object or test
                 name that this test depends on
-            required_result (int): Whether the dependent test should pass (1, TEST_PASS)
+            required_result (int, optional): Whether the dependent test should pass (1, TEST_PASS)
                 or fail (0, TEST_FAIL) to meet the dependency requirement. Default: TEST_PASS
         """
         self.dependencies[dependency] = required_result
@@ -107,7 +107,7 @@ class TestDefinition:
         Run the test function with the provided context variables.
 
         Args:
-            context (dict): Context values required for the test.
+            context (dict, optional): Context values required for the test.
 
         Returns:
             (bool) result of the test
@@ -236,7 +236,7 @@ class TestSuite:
 
         Args:
             test (TestDefinition): Test object to add to the suite
-            replace (bool): if True, replace the test if it exists. False will
+            replace (bool, optional): if True, replace the test if it exists. False will
                 raise a ValueError if a test with the same name is in the suite.
 
         Raises:
