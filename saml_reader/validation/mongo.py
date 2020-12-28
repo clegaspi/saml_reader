@@ -1044,8 +1044,26 @@ class ValidationReport:
                "the value entered for comparison." + \
                f"\nSAML value: {self._saml.get_attributes().get(attribute_name)}" + \
                f"\nSpecified comparison value: {self._comparison_values.get_value(attribute_name)}" + \
-               "\nGenerally, this means that the identity provider configuration needs\n" + \
+               "\n\nGenerally, this means that the identity provider configuration needs\n" + \
                "to be reconfigured to match the expected values"
+
+    @staticmethod
+    def _print_a_list(template_string, list_contents):
+        """
+        Outputs a list of items based on a template. For example:
+        if `template_string` is `"\n- {}"` and `list_contents` contains
+        `['a', 'b', 'c']`, the outputted string will be `\n- a\n- b\n- c`.
+
+        Args:
+            template_string (basestring): template to repeat. Must have exactly one `{}` to
+                be replaced
+            list_contents (iterable): values to replace in template string
+
+        Returns:
+            (basestring) string that represents item list
+        """
+        full_string = template_string * len(list_contents)
+        return full_string.format(*list_contents)
 
     def _compile_messages(self):
         """
@@ -1076,8 +1094,7 @@ class ValidationReport:
                 f"The Name ID format is not an acceptable format.\n" +
                 f"SAML value: {self._saml.get_subject_name_id_format()}\n" +
                 f"Acceptable formats:" +
-                ("\n - {}" * len(MongoTestSuite.VALID_NAME_ID_FORMATS)).format(
-                    *MongoTestSuite.VALID_NAME_ID_FORMATS),
+                self._print_a_list("\n - {}", MongoTestSuite.VALID_NAME_ID_FORMATS),
 
             # Claim attribute tests
             'exists_first_name': self._get_claim_attribute_exist('firstName'),
@@ -1094,11 +1111,9 @@ class ValidationReport:
             'compare_domain_email':
                 "The 'email' attribute does not contain one of the federated domains specified:\n" +
                 f"SAML 'email' attribute value: {self._saml.get_subject_name_id()}\n" +
-                f"Specified valid domains:\n" +
-                ("- {}\n" * len(self._comparison_values.get_value('domains', []))).format(
-                    *self._comparison_values.get_value('domains', [])
-                ) +
-                "If the 'email' attribute does not contain a verified domain name, it may be because\n" +
+                f"Specified valid domains:" +
+                self._print_a_list("\n - {}", self._comparison_values.get_value('domains', [])) +
+                "\n\nIf the 'email' attribute does not contain a verified domain name, it may be because\n" +
                 "the source Active Directory field does not contain the user's e-mail address.\n" +
                 "The source field may contain an internal username or other value instead.\n" +
                 "This is not necessarily an error, but may indicate there is a misconfiguration.\n" +
@@ -1109,20 +1124,16 @@ class ValidationReport:
                 "The specified comparison e-mail value does not contain\n" +
                 "one of the federated domains specified:\n" +
                 f"Specified e-mail value: {self._comparison_values.get_value('email')}\n" +
-                f"Specified valid domains:\n" +
-                ("- {}\n" * len(self._comparison_values.get_value('domains', []))).format(
-                    *self._comparison_values.get_value('domains', [])
-                ) +
-                "If the e-mail specified is the user's MongoDB username, then the Atlas\n" +
+                f"Specified valid domains:" +
+                self._print_a_list("\n - {}", self._comparison_values.get_value('domains', [])) +
+                "\n\nIf the e-mail specified is the user's MongoDB username, then the Atlas\n" +
                 "identity provider configuration likely has the incorrect domain(s) verified.",
             'compare_domain_name_id':
                 "The Name ID does not contain one of the federated domains specified:\n" +
                 f"Name ID value: {self._saml.get_subject_name_id()}\n" +
-                f"Specified valid domains:\n" +
-                ("- {}\n" * len(self._comparison_values.get_value('domains', []))).format(
-                    *self._comparison_values.get_value('domains', [])
-                ) +
-                "If the Name ID does not contain a verified domain name, it may be because\n" +
+                f"Specified valid domains:" +
+                self._print_a_list("\n - {}", self._comparison_values.get_value('domains', [])) +
+                "\n\nIf the Name ID does not contain a verified domain name, it may be because\n" +
                 "the source Active Directory field does not contain the user's e-mail address.\n" +
                 "The source field may contain an internal username or other value instead.",
 
@@ -1131,7 +1142,7 @@ class ValidationReport:
                 "The Name ID does not match the provided e-mail value:\n" +
                 f"Name ID value: {self._saml.get_subject_name_id()}\n" +
                 f"Specified email value: {self._comparison_values.get_value('email')}" +
-                "\nThis is not necessarily an error, but may indicate there is a misconfiguration.\n" +
+                "\n\nThis is not necessarily an error, but may indicate there is a misconfiguration.\n" +
                 "The value in Name ID will be the user's login username and the value in the\n" +
                 "email attribute will be the address where the user receives email messages.",
             'match_name_id_email_in_saml':
@@ -1151,7 +1162,7 @@ class ValidationReport:
                 "The Issuer URI in the SAML response does not match the specified comparison value:\n" +
                 f"SAML value: {self._saml.get_issuer_uri()}\n" +
                 f"Specified comparison value: {self._comparison_values.get_value('issuer')}" +
-                "\nGenerally, this means that the Atlas configuration needs " +
+                "\n\nGenerally, this means that the Atlas configuration needs " +
                 "to be set to match the SAML value",
 
             # Audience URL tests
@@ -1165,7 +1176,7 @@ class ValidationReport:
                 "The Audience URL in the SAML response does not match the specified comparison value:\n" +
                 f"SAML value: {self._saml.get_audience_url()}\n" +
                 f"Specified comparison value: {self._comparison_values.get_value('audience')}" +
-                "\nGenerally, this means that the Atlas configuration needs " +
+                "\n\nGenerally, this means that the Atlas configuration needs " +
                 "to be set to match the SAML value",
 
             # ACS URL tests
@@ -1180,7 +1191,7 @@ class ValidationReport:
                 "specified comparison value:\n" +
                 f"SAML value: {self._saml.get_assertion_consumer_service_url()}\n" +
                 f"Specified comparison value: {self._comparison_values.get_value('acs')}" +
-                "\nThis means that the identity provider configuration needs\n" +
+                "\n\nThis means that the identity provider configuration needs\n" +
                 "to be reconfigured to match the expected value",
 
             # Encryption algorithm tests
@@ -1196,7 +1207,7 @@ class ValidationReport:
                 f"SAML value: {self._saml.get_encryption_algorithm()}\n" +
                 f"Specified comparison value: " +
                 f"{self._comparison_values.get_value('encryption')}" +
-                "\nGenerally, this means that the Atlas configuration needs " +
+                "\n\nGenerally, this means that the Atlas configuration needs " +
                 "to be set to match the SAML value"
         }
 
