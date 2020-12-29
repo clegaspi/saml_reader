@@ -203,7 +203,7 @@ class TestSuite:
         """
         self._tests = set()
         self._context = dict()
-        self._test_graph = nx.DiGraph()
+        self._test_graph = None
         self._results = None
         self._has_run = False
 
@@ -299,6 +299,8 @@ class TestSuite:
         Builds directional graph of tests for traversal.
         Nodes are tests and edges are dependencies.
         """
+
+        self._test_graph = nx.DiGraph()
 
         # Load all tests as nodes
         for test in self._tests:

@@ -2,7 +2,7 @@
 These classes handle all data validation specific to MongoDB Cloud
 """
 import re
-from saml_reader.validation.validation import TestDefinition, TestSuite, TEST_FAIL
+from saml_reader.validation.graph_suite import TestDefinition, TestSuite, TEST_FAIL
 
 """Regular expression to match (most) valid e-mail addresses"""
 EMAIL_REGEX_MATCH = r"\b(?i)([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})\b"
