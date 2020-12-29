@@ -8,7 +8,7 @@ import json
 import argparse
 
 from saml_reader.text_reader import TextReader
-from saml_reader.mongo import MongoFederationConfig, MongoVerifier
+from saml_reader.validation.mongo import MongoFederationConfig, MongoVerifier
 from saml_reader.saml.parser import DataTypeInvalid
 from saml_reader import __version__
 

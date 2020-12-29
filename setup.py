@@ -16,6 +16,7 @@ setup(
             'pyperclip',
             'haralyzer',
             'python3-saml',
-            'cryptography'
+            'cryptography',
+            'networkx'
       ]
 )
