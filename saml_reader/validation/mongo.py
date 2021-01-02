@@ -960,7 +960,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) True if Name ID ends with one of the domains, False otherwise
         """
-        return any(context.get('saml').get_subject_name_id().lower().endswith(domain)
+        return any(context.get('saml').get_subject_name_id().lower().endswith('@' + domain)
                    for domain in context.get('comparison_values').get_value('domains'))
 
     @staticmethod
@@ -971,7 +971,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) True if email contains ends with one of the domains, False otherwise
         """
-        return any(context.get('saml').get_attributes().get('email').lower().endswith(domain)
+        return any(context.get('saml').get_attributes().get('email').lower().endswith('@' + domain)
                    for domain in context.get('comparison_values').get_value('domains'))
 
     @staticmethod
@@ -983,7 +983,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) True if email contains ends with one of the domains, False otherwise
         """
-        return any(context.get('comparison_values').get_value('email').lower().endswith(domain)
+        return any(context.get('comparison_values').get_value('email').lower().endswith('@' + domain)
                    for domain in context.get('comparison_values').get_value('domains'))
 
 
