@@ -221,7 +221,7 @@ def prompt_for_comparison_values():
         valid_value = False
         while not valid_value:
             try:
-                federation_config.set_value(name, input(prompt) or None)
+                federation_config.set_value(name, get_user_input(prompt) or None)
                 valid_value = True
             except ValueError as e:
                 if e.args[0].endswith("did not pass input validation"):
@@ -232,6 +232,20 @@ def prompt_for_comparison_values():
     print("------------")
 
     return federation_config
+
+
+def get_user_input(prompt):
+    """
+    Prompts user for input to stdin.
+
+    Args:
+        prompt (basestring): The text to prompt the user with
+
+    Returns:
+        (basestring) the data input by the user
+    """
+    user_input = input(prompt)
+    return user_input
 
 
 def parse_comparison_values_from_json(filename):
@@ -252,6 +266,7 @@ def parse_comparison_values_from_json(filename):
 
 
 def start_saml_reader():
+    # This is the CLI hook in setup.py
     cli(sys.argv[1:])
 
 
