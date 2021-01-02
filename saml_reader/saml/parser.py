@@ -190,7 +190,8 @@ class StandardSamlParser(BaseSamlParser):
                 )
             ],
             'encryption':
-                self._saml.query_assertion('/ds:Signature/ds:SignedInfo/ds:SignatureMethod'),
+                self._saml.query_assertion('/ds:Signature/ds:SignedInfo/ds:SignatureMethod') or
+                self._saml.query('/samlp:Response/ds:Signature/ds:SignedInfo/ds:SignatureMethod'),
             'audience': self._saml.query_assertion('/saml:Conditions/saml:AudienceRestriction/saml:Audience'),
             'issuer': self._saml.query_assertion('/saml:Issuer'),
             'attributes': self._saml.get_attributes()
