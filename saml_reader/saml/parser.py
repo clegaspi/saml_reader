@@ -6,36 +6,14 @@ In large part, the functionality builds on the python3-saml package produced by 
 """
 
 import re
-from functools import partial
 
-from onelogin.saml2.response import OneLogin_Saml2_Response
 from onelogin.saml2.utils import OneLogin_Saml2_Utils as utils
-from onelogin.saml2.xml_utils import OneLogin_Saml2_XML
 from urllib.parse import unquote
 from lxml import etree
-from defusedxml.lxml import RestrictedElement
 
 from saml_reader.saml.base import BaseSamlParser
-
-
-class SamlError(Exception):
-    """
-    Base exception type to require capture of parser type that raised the exception
-    """
-    def __init__(self, message, parser):
-        """
-        Create exception based on parser that raised it
-
-        Args:
-            message (basestring): exception message to show
-            parser (basestring): type of parser that raised the exception.
-                Should be one of the following:
-                - `'strict'`: standard XML parser
-                - `'relaxed'`: relaxed XML parser
-                - `'regex'`: regular expression-based parser
-        """
-        self.parser = parser
-        super().__init__(message)
+from saml_reader.saml.oli import OLISamlParser
+from saml_reader.saml.errors import SamlResponseEncryptedError, IsASamlRequest
 
 
 class DataTypeInvalid(Exception):
@@ -44,98 +22,11 @@ class DataTypeInvalid(Exception):
     """
 
 
-class SamlResponseEncryptedError(SamlError):
-    """
-    Custom exception type raised when SAML responses are encrypted
-    """
-    pass
-
-
-class SamlParsingError(SamlError):
-    """
-    Custom exception type raised when SAML response could not be parsed by this parser
-    """
-    pass
-
-
-class IsASamlRequest(SamlError):
-    """
-    Custom exception type raised when SAML data is actually a request and not a response
-    """
-    pass
-
-
 class StandardSamlParser(BaseSamlParser):
     """
     Wrapper around OneLogin SAML response parser, adding functionality to
     grab fields other than what is supported by default.
     """
-
-    class _OLISamlParser(OneLogin_Saml2_Response):
-        def __init__(self, response):
-            """
-            Build OneLogin object manually.
-
-            Args:
-                response (basestring): SAML data as stringified XML document
-            """
-            # This is basically a copy-paste of the parent class __init__()
-            # with tweaks to handle the change in parser, etc.
-
-            # These are copied from the parent class
-            self.__error = None
-            self.decrypted_document = None
-            self.encrypted = None
-            self.valid_scd_not_on_or_after = None
-
-            # After this point, the logic is customized
-            self.__settings = None
-            self.response = response
-            self.document = None
-            self.used_relaxed_parser = False
-            while self.document is None:
-                try:
-                    self.document = OneLogin_Saml2_XML.to_etree(self.response)
-                except etree.XMLSyntaxError:
-                    if self.used_relaxed_parser:
-                        raise SamlParsingError("Could not parse the XML data",
-                                               'relaxed' if self.used_relaxed_parser else 'strict')
-                    # Use a parser which attempts to recover bad XML
-                    relaxed_xml_parser = etree.XMLParser(recover=True, resolve_entities=False)
-                    lookup = etree.ElementDefaultClassLookup(element=RestrictedElement)
-                    relaxed_xml_parser.set_element_class_lookup(lookup)
-                    # Inject parser into the OLI class because there is no provided way to
-                    # change parser
-                    OneLogin_Saml2_XML._parse_etree = partial(OneLogin_Saml2_XML._parse_etree,
-                                                              parser=relaxed_xml_parser)
-                    self.used_relaxed_parser = True
-                except AttributeError as e:
-                    if e.args[0].endswith("'getroottree'"):
-                        # Even the relaxed parser couldn't parse this. Parser fails.
-                        raise SamlParsingError("Could not parse the XML data",
-                                               'relaxed' if self.used_relaxed_parser else 'strict')
-                    else:
-                        raise e
-
-            if self.used_relaxed_parser:
-                # If the parser was relaxed, want to make sure we brute-force check.
-                encrypted_assertion_nodes = re.findall(r'</?(?:saml.?:)?EncryptedAssertion', self.response)
-                saml_request_node = re.findall(r'<\/?(?:saml.{0,2}:)?AuthnRequest', self.response)
-            else:
-                encrypted_assertion_nodes = self.query('/samlp:Response/saml:EncryptedAssertion')
-                saml_request_node = self.query('/samlp:AuthnRequest')
-            if encrypted_assertion_nodes:
-                raise SamlResponseEncryptedError("SAML response is encrypted. Cannot parse without key",
-                                                 'relaxed' if self.used_relaxed_parser else 'strict')
-            if saml_request_node:
-                raise IsASamlRequest("The SAML data contains a request and not a response",
-                                     'relaxed' if self.used_relaxed_parser else 'strict')
-
-        def query_assertion(self, path):
-            return self._OneLogin_Saml2_Response__query_assertion(path)
-
-        def query(self, path):
-            return self._OneLogin_Saml2_Response__query(path)
 
     def __init__(self, response):
         """
@@ -147,7 +38,7 @@ class StandardSamlParser(BaseSamlParser):
         Raises:
             (SamlResponseEncryptedError) Raised when SAML response is encrypted
         """
-        self._saml = self._OLISamlParser(response)
+        self._saml = OLISamlParser(response)
         self._saml_values = dict()
         super().__init__()
         self._parse_saml_values()
