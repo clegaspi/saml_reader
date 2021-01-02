@@ -183,14 +183,17 @@ class StandardSamlParser(BaseSamlParser):
             'name_id_format': self._saml.query_assertion(
                 '/saml:Subject/saml:NameID'
             ),
-            'acs': self._saml.query(
-                '/samlp:Response'
-            ),
+            'acs': [
+                self._saml.query('/samlp:Response'),
+                self._saml.query_assertion(
+                    '/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData'
+                )
+            ],
             'encryption':
                 self._saml.query_assertion('/ds:Signature/ds:SignedInfo/ds:SignatureMethod') or
                 self._saml.query('/samlp:Response/ds:Signature/ds:SignedInfo/ds:SignatureMethod'),
-            'audience': self._saml.get_audiences(),
-            'issuer': self._saml.get_issuers(),
+            'audience': self._saml.query_assertion('/saml:Conditions/saml:AudienceRestriction/saml:Audience'),
+            'issuer': self._saml.query_assertion('/saml:Issuer'),
             'attributes': self._saml.get_attributes()
         }
 
@@ -198,10 +201,10 @@ class StandardSamlParser(BaseSamlParser):
             'certificate': lambda x: x[0].text if x else None,
             'name_id': lambda x: x[0].text if x else None,
             'name_id_format': lambda x: x[0].attrib.get('Format') if x else None,
-            'acs': lambda x: x[0].attrib.get('Destination') if x else None,
+            'acs': lambda x: x[0][0].attrib.get('Destination') or x[0][1].attrib.get('Recipient') or None,
             'encryption': self.__parse_encryption,
-            'audience': lambda x: x[0] if x else None,
-            'issuer': lambda x: x[0] if x else None,
+            'audience': lambda x: x[0].text if x else None,
+            'issuer': lambda x: x[0].text if x else None,
             'attributes': lambda x: {k: v[0] if v else "" for k, v in x.items()} if x else None
         }
 
