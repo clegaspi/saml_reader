@@ -28,7 +28,7 @@ class BaseSamlParser(ABC):
             xml (basestring): SAML response as stringified XML document
 
         Returns:
-            (SamlParser) parsed SAML response object
+            (BaseSamlParser) parsed SAML response object
         """
         pass
 
@@ -42,7 +42,7 @@ class BaseSamlParser(ABC):
             base64 (basestring): SAML response as base64-encoded XML document
 
         Returns:
-            (SamlParser) parsed SAML response object
+            (BaseSamlParser) parsed SAML response object
         """
         pass
 

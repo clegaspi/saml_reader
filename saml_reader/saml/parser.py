@@ -238,7 +238,7 @@ class StandardSamlParser(BaseSamlParser):
             xml (basestring): SAML response as stringified XML document
 
         Returns:
-            (SamlParser) parsed SAML response object
+            (BaseSamlParser) parsed SAML response object
         """
         rx = r'[<>]'
         if not re.match(rx, xml):
@@ -255,7 +255,7 @@ class StandardSamlParser(BaseSamlParser):
             url_decode (bool): True performs url decoding before parsing. Default: False.
 
         Returns:
-            (SamlParser) parsed SAML response object
+            (BaseSamlParser) parsed SAML response object
         """
         value = base64 if not url_decode else unquote(base64)
         # Check to see if this is valid base64
@@ -474,7 +474,7 @@ class RegexSamlParser(BaseSamlParser):
             xml (basestring): SAML response as stringified XML document
 
         Returns:
-            (SamlParser) parsed SAML response object
+            (BaseSamlParser) parsed SAML response object
         """
         # Check to see if this couldn't be XML
         rx = r'[<>]'
@@ -492,7 +492,7 @@ class RegexSamlParser(BaseSamlParser):
             url_decode (bool): True performs url decoding before parsing. Default: False.
 
         Returns:
-            (SamlParser) parsed SAML response object
+            (BaseSamlParser) parsed SAML response object
         """
 
         value = base64 if not url_decode else unquote(base64)
