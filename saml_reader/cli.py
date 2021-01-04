@@ -207,45 +207,62 @@ def prompt_for_comparison_values():
           "values in the SAML response. Press Return to skip a value.")
 
     prompt_by_value_name = [
-        ('firstName', "Customer First Name: "),
-        ('lastName', "Customer Last Name: "),
-        ('email', "Customer Email Address: "),
-        ('acs', "MongoDB Assertion Consumer Service URL: "),
-        ('audience', "MongoDB Audience URL: "),
-        ('domains', "Domain(s) associated with IdP\n(if multiple, separate by a space): "),
-        ('issuer', "IdP Issuer URI: "),
-        ('encryption', "Encryption Algorithm (""SHA1"" or ""SHA256""): ")
+        ('firstName', "Customer First Name: ", False),
+        ('lastName', "Customer Last Name: ", False),
+        ('email', "Customer Email Address: ", False),
+        ('acs', "MongoDB Assertion Consumer Service URL: ", False),
+        ('audience', "MongoDB Audience URL: ", False),
+        ('domains', "Domain(s) associated with IdP:", True),
+        ('issuer', "IdP Issuer URI: ", False),
+        ('encryption', "Encryption Algorithm (""SHA1"" or ""SHA256""): ", False),
+        ('groups', "Expected role mapping group names:", True)
     ]
 
-    for name, prompt in prompt_by_value_name:
-        valid_value = False
-        while not valid_value:
-            try:
-                federation_config.set_value(name, get_user_input(prompt) or None)
-                valid_value = True
-            except ValueError as e:
-                if e.args[0].endswith("did not pass input validation"):
-                    print(f"Attribute did not pass validation. Try again or skip the value.")
-                else:
-                    raise e
+    for name, prompt, multiple_prompts in prompt_by_value_name:
+        if multiple_prompts:
+            input_to_store = []
+            print(prompt)
+            list_index = 1
+            user_input = get_and_validate_user_input(name, f"{list_index}. ")
+            while user_input:
+                input_to_store.append(user_input)
+                list_index += 1
+                user_input = get_and_validate_user_input(name, f"{list_index}. ")
+            if not input_to_store:
+                input_to_store = None
+        else:
+            input_to_store = get_and_validate_user_input(name, prompt)
+
+        federation_config.set_value(
+            name,
+            input_to_store
+        )
 
     print("------------")
 
     return federation_config
 
 
-def get_user_input(prompt):
+def get_and_validate_user_input(name, prompt):
     """
-    Prompts user for input to stdin.
+    Prompts user for input from stdin.
 
     Args:
+        name (basestring): name of property to validate input against
         prompt (basestring): The text to prompt the user with
 
     Returns:
-        (basestring) the data input by the user
+        (`basestring`) the data input by the user. None if user inputs nothing.
     """
-    user_input = input(prompt)
-    return user_input
+    while True:
+        user_input = input(prompt)
+        if user_input:
+            if MongoFederationConfig.validate_input(name, user_input):
+                return user_input
+            else:
+                print(f"Input did not pass validation. Try again or skip the value.")
+        else:
+            return None
 
 
 def parse_comparison_values_from_json(filename):

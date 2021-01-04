@@ -16,7 +16,8 @@ VALIDATION_REGEX_BY_ATTRIB = {
     'acs': r'^https:\/\/auth\.mongodb\.com\/sso\/saml2\/[a-z0-9A-Z]{20}$',
     'audience': r'^https:\/\/www\.okta\.com\/saml2\/service-provider\/[a-z]{20}$',
     'encryption': r'^(?i)sha-?(1|256)$',
-    'domains': r'(?i)([A-Z0-9.-]+?\.[A-Z]{2,}\s*)+'
+    'domains': r'^(?i)[A-Z0-9.-]+?\.[A-Z]{2,}$',
+    'groups': r'^\s*\S+.*$'
 }
 
 
@@ -215,11 +216,14 @@ class MongoFederationConfig:
     """
 
     ATTRIB_PARSING_FUNCS = {
-        'domains': lambda x: [v.lower() for v in re.findall(r'(?i)([A-Z0-9.-]+?\.[A-Z]{2,})\s*', x)],
-        'encryption': lambda x: "SHA" + re.findall(VALIDATION_REGEX_BY_ATTRIB['encryption'], x)[0],
-        'firstName': lambda x: x.strip(),
-        'lastName': lambda x: x.strip(),
-        'email': lambda x: x.strip()
+        'domains': lambda x: [v.strip().lower() for v in x],
+        'encryption': lambda x: "SHA" + re.findall(VALIDATION_REGEX_BY_ATTRIB['encryption'], x[0])[0],
+        'firstName': lambda x: x[0].strip(),
+        'lastName': lambda x: x[0].strip(),
+        'email': lambda x: x[0].strip(),
+        'issuer': lambda x: x[0],
+        'acs': lambda x: x[0],
+        'audience': lambda x: x[0]
     }
 
     def __init__(self, **kwargs):
@@ -287,7 +291,9 @@ class MongoFederationConfig:
             return
 
         if name in VALIDATION_REGEX_BY_ATTRIB:
-            if re.fullmatch(VALIDATION_REGEX_BY_ATTRIB[name], value):
+            if not isinstance(value, list):
+                value = [value]
+            if all(self.validate_input(name, v) for v in value):
                 if name in self.ATTRIB_PARSING_FUNCS:
                     # Check if we need to parse the value
                     value = self.ATTRIB_PARSING_FUNCS[name](value)
@@ -296,6 +302,12 @@ class MongoFederationConfig:
                 raise ValueError(f"Attribute '{name}' did not pass input validation")
         else:
             raise ValueError(f"Unknown attribute name: {name}")
+
+    @staticmethod
+    def validate_input(name, value):
+        if name not in VALIDATION_REGEX_BY_ATTRIB:
+            raise ValueError(f"Unknown attribute name: {name}")
+        return bool(re.fullmatch(VALIDATION_REGEX_BY_ATTRIB[name], value))
 
 
 class MongoTestSuite(TestSuite):
