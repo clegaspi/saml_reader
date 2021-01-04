@@ -17,6 +17,8 @@ setup(
             'haralyzer',
             'python3-saml',
             'cryptography',
-            'networkx'
+            'networkx',
+            'lxml',     # This should be installed as part of python3-saml
+            'defusedxml'      # This should be installed as part of python3-saml
       ]
 )

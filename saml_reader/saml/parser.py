@@ -13,13 +13,7 @@ from lxml import etree
 
 from saml_reader.saml.base import BaseSamlParser
 from saml_reader.saml.oli import OLISamlParser
-from saml_reader.saml.errors import SamlResponseEncryptedError, IsASamlRequest
-
-
-class DataTypeInvalid(Exception):
-    """
-    Custom exception raised when the input data doesn't appear to match the specified input type
-    """
+from saml_reader.saml.errors import SamlResponseEncryptedError, IsASamlRequest, DataTypeInvalid
 
 
 class StandardSamlParser(BaseSamlParser):

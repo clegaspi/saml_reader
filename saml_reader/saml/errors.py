@@ -42,3 +42,10 @@ class IsASamlRequest(SamlError):
     Custom exception type raised when SAML data is actually a request and not a response
     """
     pass
+
+
+class DataTypeInvalid(Exception):
+    """
+    Custom exception raised when the input data doesn't appear to match the specified input type
+    """
+    pass
