@@ -7,7 +7,7 @@ import pyperclip
 
 from saml_reader.cert import Certificate
 from saml_reader.saml.parser import RegexSamlParser, StandardSamlParser
-from saml_reader.saml.parser import SamlResponseEncryptedError, SamlParsingError, IsASamlRequest, DataTypeInvalid
+from saml_reader.saml.errors import SamlParsingError, SamlResponseEncryptedError, IsASamlRequest, DataTypeInvalid
 from saml_reader.har import HarParser, HarParsingError, NoSAMLResponseFound
 
 
