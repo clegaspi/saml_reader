@@ -8,7 +8,7 @@ import json
 import argparse
 
 from saml_reader.text_reader import TextReader
-from saml_reader.validation.mongo import MongoFederationConfig, MongoVerifier
+from saml_reader.validation.mongo import MongoFederationConfig, MongoVerifier, MongoComparisonValue
 from saml_reader.saml.parser import DataTypeInvalid
 from saml_reader import __version__
 
@@ -189,10 +189,18 @@ def display_summary(verifier):
     print("---")
     # Checking for the required attributes for MongoDB Cloud
     print(f"ATTRIBUTES:")
-    for name, value in verifier.get_claim_attributes().items():
-        print(f"Name: {name}")
-        print(f"Value: {value}")
-        print("-")
+    if not verifier.get_claim_attributes():
+        print("No claim attributes found")
+    else:
+        for name, value in verifier.get_claim_attributes().items():
+            print(f"Name: {name}")
+            if isinstance(value, list):
+                print("Values:")
+                for v in value:
+                    print(f"- {v}")
+            else:
+                print(f"Value: {value}")
+            print("--")
 
 
 def prompt_for_comparison_values():
@@ -206,63 +214,40 @@ def prompt_for_comparison_values():
     print("Please enter the following values for comparison with\n"
           "values in the SAML response. Press Return to skip a value.")
 
-    prompt_by_value_name = [
-        ('firstName', "Customer First Name: ", False),
-        ('lastName', "Customer Last Name: ", False),
-        ('email', "Customer Email Address: ", False),
-        ('acs', "MongoDB Assertion Consumer Service URL: ", False),
-        ('audience', "MongoDB Audience URL: ", False),
-        ('domains', "Domain(s) associated with IdP:", True),
-        ('issuer', "IdP Issuer URI: ", False),
-        ('encryption', "Encryption Algorithm (""SHA1"" or ""SHA256""): ", False),
-        ('groups', "Expected role mapping group names:", True)
+    comparison_values = [
+        MongoComparisonValue('firstName', "Customer First Name:", multi_value=False),
+        MongoComparisonValue('lastName', "Customer Last Name:", multi_value=False),
+        MongoComparisonValue('email', "Customer Email Address:", multi_value=False),
+        MongoComparisonValue('acs', "MongoDB Assertion Consumer Service URL:", multi_value=False),
+        MongoComparisonValue('audience', "MongoDB Audience URL:", multi_value=False),
+        MongoComparisonValue('domains', "Domain(s) associated with IdP:", multi_value=True),
+        MongoComparisonValue('issuer', "IdP Issuer URI:", multi_value=False),
+        MongoComparisonValue('encryption', "Encryption Algorithm (""SHA1"" or ""SHA256""):", multi_value=False),
+        MongoComparisonValue('role_mapping_expected', "Is customer expecting role mapping (y/N):",
+                             multi_value=False, default="N")
     ]
 
-    for name, prompt, multiple_prompts in prompt_by_value_name:
-        if multiple_prompts:
-            input_to_store = []
-            print(prompt)
-            list_index = 1
-            user_input = get_and_validate_user_input(name, f"{list_index}. ")
-            while user_input:
-                input_to_store.append(user_input)
-                list_index += 1
-                user_input = get_and_validate_user_input(name, f"{list_index}. ")
-            if not input_to_store:
-                input_to_store = None
-        else:
-            input_to_store = get_and_validate_user_input(name, prompt)
+    for value in comparison_values:
+        federation_config.set_value(
+            value.get_name(),
+            value.prompt_for_user_input()
+        )
+
+    if federation_config.get_value('role_mapping_expected'):
+        member_of_values = MongoComparisonValue(
+            'memberOf',
+            "Expected role mapping group names (if unknown, leave blank):",
+            multi_value=True
+        ).prompt_for_user_input()
 
         federation_config.set_value(
-            name,
-            input_to_store
+            'memberOf',
+            member_of_values
         )
 
     print("------------")
 
     return federation_config
-
-
-def get_and_validate_user_input(name, prompt):
-    """
-    Prompts user for input from stdin.
-
-    Args:
-        name (basestring): name of property to validate input against
-        prompt (basestring): The text to prompt the user with
-
-    Returns:
-        (`basestring`) the data input by the user. None if user inputs nothing.
-    """
-    while True:
-        user_input = input(prompt)
-        if user_input:
-            if MongoFederationConfig.validate_input(name, user_input):
-                return user_input
-            else:
-                print(f"Input did not pass validation. Try again or skip the value.")
-        else:
-            return None
 
 
 def parse_comparison_values_from_json(filename):

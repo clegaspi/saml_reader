@@ -90,11 +90,39 @@ class StandardSamlParser(BaseSamlParser):
             'encryption': self.__parse_encryption,
             'audience': lambda x: x[0].text if x else None,
             'issuer': lambda x: x[0].text if x else None,
-            'attributes': lambda x: {k: v[0] if v else "" for k, v in x.items()} if x else None
+            'attributes': self.__parse_attributes
         }
 
         for field, value in value_by_field.items():
             self._saml_values[field] = transform_by_field[field](value)
+
+    @staticmethod
+    def __parse_attributes(attribute_data):
+        """
+        Apply specific transformations to claim attributes.
+
+        Args:
+            attribute_data (dict): attribute data from SAML response
+
+        Returns:
+            (dict) transformed attributes
+        """
+        if not attribute_data:
+            return None
+
+        special_transform_by_attribute = {
+            'memberOf': lambda x: x     # Retain list type for memberOf
+        }
+
+        transformed_attributes = dict()
+
+        for attribute_name, value in attribute_data.items():
+            if attribute_name in special_transform_by_attribute:
+                transformed_attributes[attribute_name] = special_transform_by_attribute[attribute_name](value)
+            else:
+                transformed_attributes[attribute_name] = value[0]
+
+        return transformed_attributes
 
     @staticmethod
     def __parse_encryption(result):
