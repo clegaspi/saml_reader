@@ -154,7 +154,7 @@ class StandardSamlParser(BaseSamlParser):
             (BaseSamlParser) parsed SAML response object
         """
         rx = r'[<>]'
-        if not re.match(rx, xml):
+        if not re.search(rx, xml):
             raise DataTypeInvalid("This does not appear to be XML")
         return cls(xml)
 
