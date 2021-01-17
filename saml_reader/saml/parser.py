@@ -111,7 +111,7 @@ class StandardSamlParser(BaseSamlParser):
             return None
 
         special_transform_by_attribute = {
-            'memberOf': lambda x: x     # Retain list type for memberOf
+            'memberOf': lambda x: x if x else []     # Retain list type for memberOf
         }
 
         transformed_attributes = dict()
@@ -120,7 +120,7 @@ class StandardSamlParser(BaseSamlParser):
             if attribute_name in special_transform_by_attribute:
                 transformed_attributes[attribute_name] = special_transform_by_attribute[attribute_name](value)
             else:
-                transformed_attributes[attribute_name] = value[0]
+                transformed_attributes[attribute_name] = value[0] if value else ""
 
         return transformed_attributes
 
@@ -333,8 +333,7 @@ class RegexSamlParser(BaseSamlParser):
             'audience': re.compile(r"(?s)<(?:saml.?:)?Audience(?:\s.*?>|>)(.*?)</(?:saml.?:)?Audience>"),
             'issuer': re.compile(r"(?s)<(?:saml.?:)?Issuer.*?>(.*?)<\/(?:saml.?:)?Issuer>"),
             'attributes': re.compile(
-                r"(?s)<(?:saml.?:)?Attribute.*?Name=\"(.+?)\".*?>.*?<(?:saml.?:)?AttributeValue.*?>(.*?)"
-                r"</(?:saml.?:)?AttributeValue>.*?</(?:saml.?:)?Attribute>"
+                r"(?s)<(?:saml.?:)?Attribute.*?Name=\"(.+?)\".*?>\s*(.*?)\s*</(?:saml.?:)?Attribute>"
             )
         }
 
@@ -346,13 +345,32 @@ class RegexSamlParser(BaseSamlParser):
             'encryption': lambda x: "SHA" + x[0] if x else None,
             'audience': lambda x: x[0] if x else None,
             'issuer': lambda x: x[0] if x else None,
-            'attributes': lambda x: {k: v if v else "" for k, v in x} if x else None
+            'attributes': self.__transform_attributes
         }
 
         for field, regex in regex_by_field.items():
             result = regex.findall(self._saml)
             result = transform_by_field[field](result)
             self._saml_values[field] = result
+
+    @staticmethod
+    def __transform_attributes(raw_data):
+        if not raw_data:
+            return None
+        value_regex = re.compile(r"(?s)<(?:saml.?:)?AttributeValue.*?>(.*?)</(?:saml.?:)?AttributeValue>")
+
+        attributes_to_return_as_list = {'memberOf'}
+
+        transformed_attributes = dict()
+        for name, value in raw_data:
+            value = value_regex.findall(value)
+            if not value:
+                # findall() returns a list with an empty string if there was a match but the group was empty
+                # but returns an empty list if there were no matches
+                value = ['(could not parse)']
+            transformed_attributes[name] = value[0] if name not in attributes_to_return_as_list else value
+
+        return transformed_attributes
 
     def _is_encrypted(self):
         """
