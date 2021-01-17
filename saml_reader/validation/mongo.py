@@ -406,10 +406,6 @@ class MongoTestSuite(TestSuite):
         'email'
     }
 
-    OPTIONAL_CLAIMS = {
-        'memberOf'
-    }
-
     def __init__(self, saml, comparison_values=None):
         """
         Create test suite with supplied SAML and comparison data.
