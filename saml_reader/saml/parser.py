@@ -355,6 +355,15 @@ class RegexSamlParser(BaseSamlParser):
 
     @staticmethod
     def __transform_attributes(raw_data):
+        """
+        Apply specific transformations to claim attributes.
+
+        Args:
+            raw_data (dict): attribute data from SAML response
+
+        Returns:
+            (dict) transformed attributes
+        """
         if not raw_data:
             return None
         value_regex = re.compile(r"(?s)<(?:saml.?:)?AttributeValue.*?>(.*?)</(?:saml.?:)?AttributeValue>")
