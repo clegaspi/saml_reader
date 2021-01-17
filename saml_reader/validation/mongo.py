@@ -389,8 +389,6 @@ class MongoTestSuite(TestSuite):
     Attributes:
         VALID_NAME_ID_FORMATS (`set` of `basestring`): acceptable formats for Name ID for MongoDB Cloud
         REQUIRED_CLAIMS (`set` of `basestring`): claim attribute names that are required in SAML response
-        OPTIONAL_CLAIMS (`set` of `basestring`): claim attributes names that are read and interpreted by
-            MongoDB cloud, but are not required
     """
 
     VALID_NAME_ID_FORMATS = {
