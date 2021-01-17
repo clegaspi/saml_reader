@@ -454,6 +454,8 @@ class MongoTestSuite(TestSuite):
                            required_context=['saml']),
 
             # Claim attribute tests
+            TestDefinition("exists_all_required_attributes", MongoTestSuite.verify_all_required_attributes_exist,
+                           required_context=['saml']),
             TestDefinition("exists_first_name", MongoTestSuite.verify_first_name_exists,
                            required_context=['saml']),
             TestDefinition("regex_first_name", MongoTestSuite.verify_first_name_pattern,
@@ -895,6 +897,18 @@ class MongoTestSuite(TestSuite):
 
     # Claim attribute tests
     @staticmethod
+    def verify_all_required_attributes_exist(context):
+        """
+        Check if SAML response has all required attributes.
+
+        Returns:
+            (bool) true if all required attributes are in SAML response, false otherwise
+        """
+        saml_attributes = context.get('saml').get_attributes() or dict()
+        return all(attribute_name in saml_attributes
+                   for attribute_name in MongoTestSuite.REQUIRED_CLAIMS)
+
+    @staticmethod
     def verify_first_name_exists(context):
         """
         Check if SAML response has 'firstName' claims attribute
@@ -1267,6 +1281,11 @@ class ValidationReport:
                 self._print_a_list("\n - {}", MongoTestSuite.VALID_NAME_ID_FORMATS),
 
             # Claim attribute tests
+            'exists_all_required_attributes': "One or more of the required claim attributes are "
+                                              "missing from the SAML response.\nThis should not cause a problem "
+                                              "for users who log in using federation but already have a MongoDB "
+                                              "Cloud account,\nbut will cause errors for any new users that attempt "
+                                              "to authenticate.",
             'exists_first_name': self._get_claim_attribute_exist('firstName'),
             'regex_first_name': self._get_claim_attribute_regex('firstName'),
             'compare_first_name': self._get_claim_attribute_mismatch("firstName"),
