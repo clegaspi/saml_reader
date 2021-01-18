@@ -307,6 +307,16 @@ class MongoFederationConfig:
 
     @staticmethod
     def validate_input(name, value):
+        """
+        Validates input for a certain attribute against expected regex pattern
+
+        Args:
+            name (basestring): name of the attribute
+            value (basestring): value to validate
+
+        Returns:
+            (bool) True if matches, false otherwise
+        """
         if name not in VALIDATION_REGEX_BY_ATTRIB:
             raise ValueError(f"Unknown attribute name: {name}")
         if value is None:
@@ -315,7 +325,22 @@ class MongoFederationConfig:
 
 
 class MongoComparisonValue:
+    """
+    Collects comparison value input from the user through stdin prompts
+    """
     def __init__(self, name, prompt, multi_value=False, default=None):
+        """
+        Create a comparison value object for a given value type.
+
+        Args:
+            name (basestring): name of the input value, must be contained in VALIDATION_REGEX_BY_ATTRIB.
+            prompt (basestring): the text with which to prompt the user during input
+            multi_value (bool, optional): True if the user should be prompted for more than one input value,
+                False will only prompt for one input value. Default: False (one input)
+            default (object, optional): The default value to set if the user does not input anything. Default: None
+        """
+        if name not in VALIDATION_REGEX_BY_ATTRIB:
+            raise ValueError(f"Unknown value name: {name}")
         self._name = name
         self._prompt = prompt
         self._multi_value = multi_value
@@ -325,6 +350,13 @@ class MongoComparisonValue:
             raise ValueError(f"Invalid default value '{default}' for attribute '{name}'")
 
     def prompt_for_user_input(self):
+        """
+        Prompt user for input using stdin.
+
+        Returns:
+            (`basestring`, `list`, or `object`) The user input as a string or list, depending if multi-valued
+                or the default value if no user input provided
+        """
         if self._multi_value:
             user_input = self._get_multi_value()
         else:
@@ -335,12 +367,32 @@ class MongoComparisonValue:
         return user_input
 
     def get_name(self):
+        """
+        Get value name
+
+        Returns:
+            (basestring) value name
+        """
         return self._name
 
     def _get_single_value(self):
+        """
+        Prompt user for a single value with default prompt.
+
+        Returns:
+            (`basestring` or `object`) The user input as a string
+                or the default value if no user input provided
+        """
         return self._get_and_validate_user_input()
 
     def _get_multi_value(self):
+        """
+        Prompt user for a multiple values with a numbered prompt.
+
+        Returns:
+            (`list` or `object`) The user input as a list
+                or the default value if no user input provided
+        """
         input_to_store = []
         print(self._prompt)
         list_index = 1
@@ -350,7 +402,7 @@ class MongoComparisonValue:
             list_index += 1
             user_input = self._get_and_validate_user_input(prompt=f"{list_index}.")
         if not input_to_store:
-            input_to_store = None
+            input_to_store = self._default
 
         return input_to_store
 
@@ -368,7 +420,8 @@ class MongoComparisonValue:
         if prompt is None:
             prompt = self._prompt
 
-        if not re.match(r'\S$', prompt):
+        if not re.match(r'.*\s$', prompt):
+            # If the prompt doesn't end with a whitespace character, add a space for padding
             prompt += " "
 
         while True:
