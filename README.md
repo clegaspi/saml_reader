@@ -135,12 +135,12 @@ comparison values in the format:
   "audience": "Audience URL here",
   "encryption": "Must be 'SHA1' or 'SHA256'",
   "domains": ["foo.com", "bar.net", "mydomain.com"],
-  "role_mapping_expected": "Y",
+  "role_mapping_expected": "Must be 'Y' or 'N'",
   "memberOf": ["Test Group Name"]
 } 
 ```
 
-Any value can be omitted or substituted with `null` to be ignored. 
+Note that `domains` and `memberOf` must be lists. Any value can be omitted or substituted with `null` to be ignored. 
 An empty string (`""`) or empty list (`[]`) will be interpreted as an invalid value.
 
 ## Reporting issues
@@ -162,3 +162,6 @@ describing the issue you are experiencing and one of the maintainers will look i
 
 I do not have any specific requirements for contributing at this time, other than
 that I am using Google-style docstrings. Please feel free to open a pull request!
+
+As the architecture has evolved, I plan to create a document with more information on
+the structure of the application and how to contribute.
