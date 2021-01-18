@@ -7,7 +7,7 @@ import pyperclip
 
 from saml_reader.cert import Certificate
 from saml_reader.saml.parser import RegexSamlParser, StandardSamlParser
-from saml_reader.saml.parser import SamlResponseEncryptedError, SamlParsingError, IsASamlRequest, DataTypeInvalid
+from saml_reader.saml.errors import SamlParsingError, SamlResponseEncryptedError, IsASamlRequest, DataTypeInvalid
 from saml_reader.har import HarParser, HarParsingError, NoSAMLResponseFound
 
 
@@ -127,9 +127,15 @@ class TextReader:
         if self._valid_saml:
             raw_cert = self._saml.get_certificate()
 
+            self._cert = None
             if raw_cert:
-                self._cert = Certificate(raw_cert)
-            else:
+                try:
+                    self._cert = Certificate(raw_cert)
+                except ValueError as e:
+                    if not e.args[0].startswith("Unable to load certificate"):
+                        raise e
+
+            if not self._cert:
                 self._errors.append(
                     "Could not locate certificate. Identity provider info will not be available."
                 )
