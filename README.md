@@ -107,10 +107,17 @@ Customer Last Name: Ell
 Customer Email Address: sam.ell@mydomain.com
 MongoDB Assertion Consumer Service URL: https://auth.mongodb.com/sso/saml2/01234abcDE56789ZyXwv
 MongoDB Audience URL: https://www.okta.com/saml2/service-provider/abcdefghijklmnopqrst
-Domain(s) associated with IdP
-(if multiple, separate by a space): foo.com bar.net mydomain.com
+Domain(s) associated with IdP:
+1. foo.com
+2. bar.net
+3. mydomain.com
+4. 
 IdP Issuer URI: Issuer_URI_Here
 Encryption Algorithm (SHA1 or SHA256): SHA256
+Is customer expecting role mapping (y/N): y
+Expected role mapping group names (if unknown, leave blank):
+1. Test Group Name
+2.
 ```
 All values will be validated to see if they match expected values for MongoDB Cloud.
 If an attribute does not pass validation, you will be asked to re-enter it or skip it.
@@ -127,12 +134,14 @@ comparison values in the format:
   "acs": "Assertion Consumer Service URL here",
   "audience": "Audience URL here",
   "encryption": "Must be 'SHA1' or 'SHA256'",
-  "domains": "foo.com bar.net mydomain.com"
+  "domains": ["foo.com", "bar.net", "mydomain.com"],
+  "role_mapping_expected": "Y",
+  "memberOf": ["Test Group Name"]
 } 
 ```
 
 Any value can be omitted or substituted with `null` to be ignored. 
-An empty string (`""`) will be interpreted as an invalid value.
+An empty string (`""`) or empty list (`[]`) will be interpreted as an invalid value.
 
 ## Reporting issues
 
