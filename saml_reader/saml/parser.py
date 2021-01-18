@@ -90,11 +90,39 @@ class StandardSamlParser(BaseSamlParser):
             'encryption': self.__parse_encryption,
             'audience': lambda x: x[0].text if x else None,
             'issuer': lambda x: x[0].text if x else None,
-            'attributes': lambda x: {k: v[0] if v else "" for k, v in x.items()} if x else None
+            'attributes': self.__parse_attributes
         }
 
         for field, value in value_by_field.items():
             self._saml_values[field] = transform_by_field[field](value)
+
+    @staticmethod
+    def __parse_attributes(attribute_data):
+        """
+        Apply specific transformations to claim attributes.
+
+        Args:
+            attribute_data (dict): attribute data from SAML response
+
+        Returns:
+            (dict) transformed attributes
+        """
+        if not attribute_data:
+            return None
+
+        special_transform_by_attribute = {
+            'memberOf': lambda x: x if x else []     # Retain list type for memberOf
+        }
+
+        transformed_attributes = dict()
+
+        for attribute_name, value in attribute_data.items():
+            if attribute_name in special_transform_by_attribute:
+                transformed_attributes[attribute_name] = special_transform_by_attribute[attribute_name](value)
+            else:
+                transformed_attributes[attribute_name] = value[0] if value else ""
+
+        return transformed_attributes
 
     @staticmethod
     def __parse_encryption(result):
@@ -126,7 +154,7 @@ class StandardSamlParser(BaseSamlParser):
             (BaseSamlParser) parsed SAML response object
         """
         rx = r'[<>]'
-        if not re.match(rx, xml):
+        if not re.search(rx, xml):
             raise DataTypeInvalid("This does not appear to be XML")
         return cls(xml)
 
@@ -305,8 +333,7 @@ class RegexSamlParser(BaseSamlParser):
             'audience': re.compile(r"(?s)<(?:saml.?:)?Audience(?:\s.*?>|>)(.*?)</(?:saml.?:)?Audience>"),
             'issuer': re.compile(r"(?s)<(?:saml.?:)?Issuer.*?>(.*?)<\/(?:saml.?:)?Issuer>"),
             'attributes': re.compile(
-                r"(?s)<(?:saml.?:)?Attribute.*?Name=\"(.+?)\".*?>.*?<(?:saml.?:)?AttributeValue.*?>(.*?)"
-                r"</(?:saml.?:)?AttributeValue>.*?</(?:saml.?:)?Attribute>"
+                r"(?s)<(?:saml.?:)?Attribute.*?Name=\"(.+?)\".*?>\s*(.*?)\s*</(?:saml.?:)?Attribute>"
             )
         }
 
@@ -318,13 +345,41 @@ class RegexSamlParser(BaseSamlParser):
             'encryption': lambda x: "SHA" + x[0] if x else None,
             'audience': lambda x: x[0] if x else None,
             'issuer': lambda x: x[0] if x else None,
-            'attributes': lambda x: {k: v if v else "" for k, v in x} if x else None
+            'attributes': self.__transform_attributes
         }
 
         for field, regex in regex_by_field.items():
             result = regex.findall(self._saml)
             result = transform_by_field[field](result)
             self._saml_values[field] = result
+
+    @staticmethod
+    def __transform_attributes(raw_data):
+        """
+        Apply specific transformations to claim attributes.
+
+        Args:
+            raw_data (dict): attribute data from SAML response
+
+        Returns:
+            (dict) transformed attributes
+        """
+        if not raw_data:
+            return None
+        value_regex = re.compile(r"(?s)<(?:saml.?:)?AttributeValue.*?>(.*?)</(?:saml.?:)?AttributeValue>")
+
+        attributes_to_return_as_list = {'memberOf'}
+
+        transformed_attributes = dict()
+        for name, value in raw_data:
+            value = value_regex.findall(value)
+            if not value:
+                # findall() returns a list with an empty string if there was a match but the group was empty
+                # but returns an empty list if there were no matches
+                value = ['(could not parse)']
+            transformed_attributes[name] = value[0] if name not in attributes_to_return_as_list else value
+
+        return transformed_attributes
 
     def _is_encrypted(self):
         """

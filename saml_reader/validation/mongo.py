@@ -16,7 +16,9 @@ VALIDATION_REGEX_BY_ATTRIB = {
     'acs': r'^https:\/\/auth\.mongodb\.com\/sso\/saml2\/[a-z0-9A-Z]{20}$',
     'audience': r'^https:\/\/www\.okta\.com\/saml2\/service-provider\/[a-z]{20}$',
     'encryption': r'^(?i)sha-?(1|256)$',
-    'domains': r'(?i)([A-Z0-9.-]+?\.[A-Z]{2,}\s*)+'
+    'domains': r'^(?i)[A-Z0-9.-]+?\.[A-Z]{2,}$',
+    'memberOf': r'^\s*\S+.*$',
+    'role_mapping_expected': '^(?i)[YN]$'
 }
 
 
@@ -215,11 +217,15 @@ class MongoFederationConfig:
     """
 
     ATTRIB_PARSING_FUNCS = {
-        'domains': lambda x: [v.lower() for v in re.findall(r'(?i)([A-Z0-9.-]+?\.[A-Z]{2,})\s*', x)],
-        'encryption': lambda x: "SHA" + re.findall(VALIDATION_REGEX_BY_ATTRIB['encryption'], x)[0],
-        'firstName': lambda x: x.strip(),
-        'lastName': lambda x: x.strip(),
-        'email': lambda x: x.strip()
+        'domains': lambda x: [v.strip().lower() for v in x],
+        'encryption': lambda x: "SHA" + re.findall(VALIDATION_REGEX_BY_ATTRIB['encryption'], x[0])[0],
+        'firstName': lambda x: x[0].strip(),
+        'lastName': lambda x: x[0].strip(),
+        'email': lambda x: x[0].strip(),
+        'issuer': lambda x: x[0],
+        'acs': lambda x: x[0],
+        'audience': lambda x: x[0],
+        'role_mapping_expected': lambda x: x[0].upper() == 'Y'
     }
 
     def __init__(self, **kwargs):
@@ -287,7 +293,9 @@ class MongoFederationConfig:
             return
 
         if name in VALIDATION_REGEX_BY_ATTRIB:
-            if re.fullmatch(VALIDATION_REGEX_BY_ATTRIB[name], value):
+            if not isinstance(value, list):
+                value = [value]
+            if all(self.validate_input(name, v) for v in value):
                 if name in self.ATTRIB_PARSING_FUNCS:
                     # Check if we need to parse the value
                     value = self.ATTRIB_PARSING_FUNCS[name](value)
@@ -297,6 +305,135 @@ class MongoFederationConfig:
         else:
             raise ValueError(f"Unknown attribute name: {name}")
 
+    @staticmethod
+    def validate_input(name, value):
+        """
+        Validates input for a certain attribute against expected regex pattern
+
+        Args:
+            name (basestring): name of the attribute
+            value (basestring): value to validate
+
+        Returns:
+            (bool) True if matches, false otherwise
+        """
+        if name not in VALIDATION_REGEX_BY_ATTRIB:
+            raise ValueError(f"Unknown attribute name: {name}")
+        if value is None:
+            return True
+        return bool(re.fullmatch(VALIDATION_REGEX_BY_ATTRIB[name], value))
+
+
+class MongoComparisonValue:
+    """
+    Collects comparison value input from the user through stdin prompts
+    """
+    def __init__(self, name, prompt, multi_value=False, default=None):
+        """
+        Create a comparison value object for a given value type.
+
+        Args:
+            name (basestring): name of the input value, must be contained in VALIDATION_REGEX_BY_ATTRIB.
+            prompt (basestring): the text with which to prompt the user during input
+            multi_value (bool, optional): True if the user should be prompted for more than one input value,
+                False will only prompt for one input value. Default: False (one input)
+            default (object, optional): The default value to set if the user does not input anything. Default: None
+        """
+        if name not in VALIDATION_REGEX_BY_ATTRIB:
+            raise ValueError(f"Unknown value name: {name}")
+        self._name = name
+        self._prompt = prompt
+        self._multi_value = multi_value
+        if MongoFederationConfig.validate_input(name, default):
+            self._default = default
+        else:
+            raise ValueError(f"Invalid default value '{default}' for attribute '{name}'")
+
+    def prompt_for_user_input(self):
+        """
+        Prompt user for input using stdin.
+
+        Returns:
+            (`basestring`, `list`, or `object`) The user input as a string or list, depending if multi-valued
+                or the default value if no user input provided
+        """
+        if self._multi_value:
+            user_input = self._get_multi_value()
+        else:
+            user_input = self._get_single_value()
+
+        if user_input is None:
+            return self._default
+        return user_input
+
+    def get_name(self):
+        """
+        Get value name
+
+        Returns:
+            (basestring) value name
+        """
+        return self._name
+
+    def _get_single_value(self):
+        """
+        Prompt user for a single value with default prompt.
+
+        Returns:
+            (`basestring` or `object`) The user input as a string
+                or the default value if no user input provided
+        """
+        return self._get_and_validate_user_input()
+
+    def _get_multi_value(self):
+        """
+        Prompt user for a multiple values with a numbered prompt.
+
+        Returns:
+            (`list` or `object`) The user input as a list
+                or the default value if no user input provided
+        """
+        input_to_store = []
+        print(self._prompt)
+        list_index = 1
+        user_input = self._get_and_validate_user_input(prompt=f"{list_index}.")
+        while user_input:
+            input_to_store.append(user_input)
+            list_index += 1
+            user_input = self._get_and_validate_user_input(prompt=f"{list_index}.")
+        if not input_to_store:
+            input_to_store = self._default
+
+        return input_to_store
+
+    def _get_and_validate_user_input(self, prompt=None):
+        """
+        Prompts user for input from stdin.
+
+        Args:
+            prompt (basestring, optional): The text to prompt the user with.
+                Default: None (prompts with self._prompt)
+
+        Returns:
+            (`basestring`) the data input by the user. None if user inputs nothing.
+        """
+        if prompt is None:
+            prompt = self._prompt
+
+        if not re.match(r'.*\s$', prompt):
+            # If the prompt doesn't end with a whitespace character, add a space for padding
+            prompt += " "
+
+        while True:
+            user_input = input(prompt)
+            if user_input:
+                if MongoFederationConfig.validate_input(self._name, user_input):
+                    return user_input
+                else:
+                    print(f"Input did not pass validation. Try again or skip the value.")
+            else:
+                return None
+
 
 class MongoTestSuite(TestSuite):
     """
@@ -305,8 +442,6 @@ class MongoTestSuite(TestSuite):
     Attributes:
         VALID_NAME_ID_FORMATS (`set` of `basestring`): acceptable formats for Name ID for MongoDB Cloud
         REQUIRED_CLAIMS (`set` of `basestring`): claim attribute names that are required in SAML response
-        OPTIONAL_CLAIMS (`set` of `basestring`): claim attributes names that are read and interpreted by
-            MongoDB cloud, but are not required
     """
 
     VALID_NAME_ID_FORMATS = {
@@ -320,10 +455,6 @@ class MongoTestSuite(TestSuite):
         'firstName',
         'lastName',
         'email'
-    }
-
-    OPTIONAL_CLAIMS = {
-        # There are no currently supported optional claims
     }
 
     def __init__(self, saml, comparison_values=None):
@@ -370,6 +501,8 @@ class MongoTestSuite(TestSuite):
                            required_context=['saml']),
 
             # Claim attribute tests
+            TestDefinition("exists_all_required_attributes", MongoTestSuite.verify_all_required_attributes_exist,
+                           required_context=['saml']),
             TestDefinition("exists_first_name", MongoTestSuite.verify_first_name_exists,
                            required_context=['saml']),
             TestDefinition("regex_first_name", MongoTestSuite.verify_first_name_pattern,
@@ -384,6 +517,14 @@ class MongoTestSuite(TestSuite):
                            required_context=['saml']),
             TestDefinition("regex_email", MongoTestSuite.verify_email_pattern,
                            dependencies=['exists_email'],
+                           required_context=['saml']),
+            TestDefinition("exists_member_of", MongoTestSuite.verify_member_of_exists,
+                           required_context=['saml']),
+            TestDefinition("member_of_not_empty", MongoTestSuite.verify_member_of_not_empty,
+                           dependencies=['exists_member_of'],
+                           required_context=['saml']),
+            TestDefinition("regex_member_of", MongoTestSuite.verify_member_of_pattern,
+                           dependencies=['member_of_not_empty'],
                            required_context=['saml']),
 
             # Claim attribute comparison tests
@@ -404,6 +545,15 @@ class MongoTestSuite(TestSuite):
                            required_context=['comparison_values']),
             TestDefinition("compare_email", MongoTestSuite.verify_email,
                            dependencies=['exists_comparison_email'],
+                           required_context=['saml', 'comparison_values']),
+            TestDefinition("member_of_is_expected", MongoTestSuite.verify_member_of_is_expected,
+                           dependencies=[('exists_member_of', TEST_FAIL)],
+                           required_context=['comparison_values']),
+            TestDefinition("exists_comparison_member_of", MongoTestSuite.verify_member_of_comparison_exists,
+                           dependencies=['regex_member_of'],
+                           required_context=['comparison_values']),
+            TestDefinition("compare_member_of", MongoTestSuite.verify_member_of,
+                           dependencies=['exists_comparison_member_of'],
                            required_context=['saml', 'comparison_values']),
 
             # Federated domain tests
@@ -794,6 +944,18 @@ class MongoTestSuite(TestSuite):
 
     # Claim attribute tests
     @staticmethod
+    def verify_all_required_attributes_exist(context):
+        """
+        Check if SAML response has all required attributes.
+
+        Returns:
+            (bool) true if all required attributes are in SAML response, false otherwise
+        """
+        saml_attributes = context.get('saml').get_attributes() or dict()
+        return all(attribute_name in saml_attributes
+                   for attribute_name in MongoTestSuite.REQUIRED_CLAIMS)
+
+    @staticmethod
     def verify_first_name_exists(context):
         """
         Check if SAML response has 'firstName' claims attribute
@@ -924,6 +1086,75 @@ class MongoTestSuite(TestSuite):
         """
         return context.get('comparison_values').get_value('email').lower() == \
                context.get('saml').get_attributes().get('email').lower()
+
+    @staticmethod
+    def verify_member_of_exists(context):
+        """
+        Check if SAML response has 'memberOf' claims attribute
+
+        Returns:
+            (bool) true if attribute is in SAML response, false otherwise
+        """
+        return 'memberOf' in (context.get('saml').get_attributes() or dict())
+
+    @staticmethod
+    def verify_member_of_not_empty(context):
+        """
+        Check if 'memberOf' claims attribute is not empty.
+
+        Returns:
+            (bool) true if attribute is not empty, false otherwise
+        """
+        return len(context.get('saml').get_attributes().get('memberOf', [])) != 0
+
+    @staticmethod
+    def verify_member_of_pattern(context):
+        """
+        Check if all values in 'memberOf' claims attribute matches regex pattern
+
+        Returns:
+            (bool) true if matches, false otherwise
+        """
+        return all(
+            MongoTestSuite._matches_regex(
+                VALIDATION_REGEX_BY_ATTRIB['memberOf'], value
+            ) for value in context.get('saml').get_attributes().get('memberOf', [])
+        )
+
+    @staticmethod
+    def verify_member_of_is_expected(context):
+        """
+        Check if 'memberOf' claims attribute is in SAML response if customer
+        expects to do role mapping.
+
+        Returns:
+            (bool) true if attribute exists and customer expects it, false otherwise
+        """
+        return not context.get('comparison_values').get_value('role_mapping_expected', False)
+
+    @staticmethod
+    def verify_member_of_comparison_exists(context):
+        """
+        Check if 'memberOf' claims attribute has a comparison value entered
+
+        Returns:
+            (bool) true if comparison value exists, false otherwise
+        """
+        return context.get('comparison_values').get_value('memberOf') is not None
+
+    @staticmethod
+    def verify_member_of(context):
+        """
+        Check if 'memberOf' claims attribute contains all comparison values entered
+
+        Returns:
+            (bool) true if matches, false otherwise
+        """
+        member_of_groups = context.get('saml').get_attributes().get('memberOf', [])
+        return all(
+            group in member_of_groups
+            for group in context.get('comparison_values').get_value('memberOf', [])
+        )
 
     # Name ID, email, and domain tests
     @staticmethod
@@ -1097,6 +1328,11 @@ class ValidationReport:
                 self._print_a_list("\n - {}", MongoTestSuite.VALID_NAME_ID_FORMATS),
 
             # Claim attribute tests
+            'exists_all_required_attributes': "One or more of the required claim attributes are "
+                                              "missing from the SAML response.\nThis should not cause a problem "
+                                              "for users who log in using federation but already have a MongoDB "
+                                              "Cloud account,\nbut will cause errors for any new users that attempt "
+                                              "to authenticate.",
             'exists_first_name': self._get_claim_attribute_exist('firstName'),
             'regex_first_name': self._get_claim_attribute_regex('firstName'),
             'compare_first_name': self._get_claim_attribute_mismatch("firstName"),
@@ -1106,6 +1342,21 @@ class ValidationReport:
             'exists_email': self._get_claim_attribute_exist('email'),
             'regex_email': self._get_claim_attribute_regex('email'),
             'compare_email': self._get_claim_attribute_mismatch("email"),
+
+            # Role mapping tests
+            'member_of_is_expected':
+                "The customer expects to use role mapping, but the 'memberOf' attribute\n" +
+                "is missing from the SAML response. The identity provider needs to be configured\n" +
+                "to send the group names. It is possible that the user is a member of no groups and\n" +
+                "so the identity provider may have omitted the attribute altogether.",
+            'regex_member_of': self._get_claim_attribute_regex('memberOf'),
+            'compare_member_of':
+                f"The optional 'memberOf' claim attribute is missing one or more values entered for comparison." + \
+                f"\nSAML value:" + self._print_a_list("\n - {}", self._saml.get_attributes().get('memberOf', [])) + \
+                f"\nSpecified comparison value:" + self._print_a_list(
+                    "\n - {}", self._comparison_values.get_value('memberOf', [])) + \
+                "\n\nGenerally, this means that the user's account in the customer Active Directory\n" + \
+                "needs to be added to the correct group.",
 
             # Federated domain tests
             'compare_domain_email':
