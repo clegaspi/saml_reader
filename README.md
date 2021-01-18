@@ -7,8 +7,7 @@ This means **DO NOT** upload any SAML data, even if it is yours. I don't want to
 for it. :)
 
 ## What is this tool?
-This tool parses SAML responses, gathering relevant info for diagnosing issues with federated authentication for Cloud.
-There is some extra checks for MDB Cloud, but not many so far.
+This tool parses SAML responses, gathering relevant info for diagnosing issues with federated authentication for MongoDB Cloud.
 
 ### Installation
 
