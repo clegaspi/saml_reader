@@ -19,23 +19,21 @@ brew install libxml2 libxmlsec1 pkg-config
 
 To install the actual package once the dependencies have been installed:
 
-1. Clone repository
-2. If you wish to run this package in an environment such as [virtualenv](https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/) or [Anaconda](https://docs.conda.io/projects/conda/en/latest/user-guide/getting-started.html), create the environment of your choice with Python 3.6+ and activate it. I always recommend installing in an environment, but if you wish to install the package globally, skip to step 3.
-3. In root directory of the repository, run:
+1. If you wish to run this package in an environment such as [virtualenv](https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/) or [Anaconda](https://docs.conda.io/projects/conda/en/latest/user-guide/getting-started.html), create the environment of your choice with Python 3.6+ and activate it. I always recommend installing in an environment, but if you wish to install the package globally, skip to step 2.
+2. In root directory of the repository, run:
 ```bash
-pip install .
+pip install saml_reader
 ```
-4. Run the command line interface by running `saml_reader`
+3. Run the command line interface by running `saml_reader` with options specified below.
 
-This tool requires a few packages for parsing the data.
+This tool requires a few external packages for parsing the data and running tests.
 
 ### Updating the package
 
 As this software is in its infancy, updates will be made quickly as bugs are discovered and improvements are made. To get the latest version, from the root of the repository, run:
 
 ```
-git pull
-pip install .
+pip install --upgrade saml_reader
 ```
 
 This should uninstall the old version and install the new.
