@@ -5,6 +5,7 @@ python:
 install:
   - sudo apt-get install libxml2-dev libxmlsec1-dev libxmlsec1-openssl
   - pip install .
+  - pip install coverage coveralls
 # command to run tests
 script:
   - coverage run --source=saml_reader -m pytest --verbose
