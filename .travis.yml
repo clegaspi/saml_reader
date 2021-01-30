@@ -1,0 +1,10 @@
+language: python
+python:
+  - "3.6"
+# command to install dependencies
+install:
+  - sudo apt-get install libxml2-dev libxmlsec1-dev libxmlsec1-openssl
+  - pip install .
+# command to run tests
+script:
+  - pytest --verbose
