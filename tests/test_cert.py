@@ -4,10 +4,10 @@ from saml_reader.cert import Certificate
 
 
 class CertificateTests(unittest.TestCase):
-    # The x509 certificate used here is a self-signed certificate from
-    # https://www.samltool.com/self_signed_certs.php and carries no validity for any real system.
-
     def setUp(self):
+        # The x509 certificate used here is a self-signed certificate from
+        # https://www.samltool.com/self_signed_certs.php and carries no validity for any real system.
+
         self.cert_data = """MIICsjCCAhugAwIBAgIBADANBgkqhkiG9w0BAQ0FADB2MQswCQYDVQQGEwJ1czET
 MBEGA1UECAwKQ2FsaWZvcm5pYTEYMBYGA1UECgwPRm9vIEVudGVycHJpc2VzMRAw
 DgYDVQQDDAdmb28uY29tMRAwDgYDVQQHDAdBbnl0b3duMRQwEgYDVQQLDAtCYXIg
