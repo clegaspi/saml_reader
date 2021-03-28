@@ -36,8 +36,6 @@ class HarParser(object):
         Args:
             data (basestring): Raw HAR data as JSON-string
         """
-        # TODO: Consider parsing this upon creation and writing a getter for SAML response(s)
-        #       to wrap the haralyzer package more thoroughly
         try:
             self.data = json.loads(data)
         except json.JSONDecodeError:
