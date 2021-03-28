@@ -59,21 +59,14 @@ class StandardSamlParser(BaseSamlParser):
         """
 
         value_by_field = {
-            'certificate': self._saml.query_assertion(
-                '/ds:Signature/ds:KeyInfo/ds:X509Data/ds:X509Certificate'
-            ),
+            'certificate': self.__get_certificate(),
             'name_id': self._saml.query_assertion(
                 '/saml:Subject/saml:NameID'
             ),
             'name_id_format': self._saml.query_assertion(
                 '/saml:Subject/saml:NameID'
             ),
-            'acs': [
-                self._saml.query('/samlp:Response'),
-                self._saml.query_assertion(
-                    '/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData'
-                )
-            ],
+            'acs': self.__get_acs(),
             'encryption':
                 self._saml.query_assertion('/ds:Signature/ds:SignedInfo/ds:SignatureMethod') or
                 self._saml.query('/samlp:Response/ds:Signature/ds:SignedInfo/ds:SignatureMethod'),
@@ -83,10 +76,10 @@ class StandardSamlParser(BaseSamlParser):
         }
 
         transform_by_field = {
-            'certificate': lambda x: x[0].text if x else None,
+            'certificate': lambda x: x,
             'name_id': lambda x: x[0].text if x else None,
             'name_id_format': lambda x: x[0].attrib.get('Format') if x else None,
-            'acs': lambda x: x[0][0].attrib.get('Destination') or x[1][0].attrib.get('Recipient') or None,
+            'acs': lambda x: x,
             'encryption': self.__parse_encryption,
             'audience': lambda x: x[0].text if x else None,
             'issuer': lambda x: x[0].text if x else None,
@@ -95,6 +88,36 @@ class StandardSamlParser(BaseSamlParser):
 
         for field, value in value_by_field.items():
             self._saml_values[field] = transform_by_field[field](value)
+
+    def __get_acs(self):
+        """
+        Return the Assertion Consumer Service URL, if it exists in the SAML data
+
+        Returns:
+            (`basestring` or `None`) ACS data, or None, if it doesn't exist
+        """
+        value = self._saml.query('/samlp:Response')
+        if value:
+            return value[0].attrib.get('Destination')
+        value = self._saml.query_assertion(
+            '/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData'
+        )
+        if value:
+            return value[0].attrib.get('Recipient')
+        return None
+
+    def __get_certificate(self):
+        """
+        Return the certificate data, if it exists in the SAML data
+
+        Returns:
+            (`basestring` or `None`) Certificate data, or None, if it doesn't exist
+        """
+        value = self._saml.query_assertion('/ds:Signature/ds:KeyInfo/ds:X509Data/ds:X509Certificate') or \
+            self._saml.query('/samlp:Response/ds:Signature/ds:KeyInfo/ds:X509Data/ds:X509Certificate')
+        if not value:
+            return None
+        return value[0].text
 
     @staticmethod
     def __parse_attributes(attribute_data):
