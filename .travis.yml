@@ -3,7 +3,7 @@ python:
   - "3.6"
 # command to install dependencies
 before_install:
-  - openssl aes-256-cbc -K $encrypted_d83e6e0e8a96_key -iv $encrypted_d83e6e0e8a96_iv -in tests/data/redacted.har.enc -out tests/data/redacted.har -d
+  - openssl aes-256-cbc -K $encrypted_d83e6e0e8a96_key -iv $encrypted_d83e6e0e8a96_iv -in redacted.har.enc -out redacted.har -d
 install:
   - sudo apt-get install libxml2-dev libxmlsec1-dev libxmlsec1-openssl
   - pip install .
