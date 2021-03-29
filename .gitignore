@@ -1,1 +1,5 @@
-/tests/data/redacted.har
+/tests/data/redacted_nodata.har
+/tests/data/redacted_requests.har
+/tests/data/redacted_responses.har
+/tests/data/redacted_saml.har
+/tests/data/redacted_har_data.tar.gz
