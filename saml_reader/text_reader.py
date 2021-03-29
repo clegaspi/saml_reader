@@ -206,13 +206,16 @@ class TextReader:
             return parser.from_xml(data)
         if input_type == 'har':
             try:
-                # TODO: Do the HAR parsing in the constructor?
                 har_parser = HarParser(data)
-                data = har_parser.parse()
             except HarParsingError as e:
                 raise DataTypeInvalid(*e.args)
-            self._errors.extend(har_parser.errors)
-            return parser.from_base64(data)
+            if har_parser.contains_multiple_responses():
+                # TODO: This is a place where some optimization could happen, such as prompting
+                #       the user to select one of the responses, or trying to analyze the destination
+                #       URL to see which one is "probably" right by matching the ACS pattern
+                self._errors.append("Multiple SAML responses found! Using the most recent.")
+            raw_saml_data = har_parser.get_raw_saml_response()
+            return parser.from_base64(raw_saml_data)
         raise DataTypeInvalid(f"Invalid data type specified: {input_type}")
 
     def get_saml(self):

@@ -1,5 +1,8 @@
 # SAML Reader
 
+[![Build Status](https://travis-ci.com/clegaspi/saml_reader.svg?branch=master)](https://travis-ci.com/clegaspi/saml_reader)
+[![Coverage Status](https://coveralls.io/repos/github/clegaspi/saml_reader/badge.svg?branch=add_travis)](https://coveralls.io/github/clegaspi/saml_reader?branch=add_travis)
+
 ## **IMPORTANT**
 Please **DO NOT** add any personally identifiable information (PII) when reporting an issue.
 
