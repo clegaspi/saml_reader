@@ -8,9 +8,10 @@ from saml_reader.har import HarParser, HarParsingError, NoSAMLResponseFound
 # has been highly redacted. The infrastructure that generated this SAML data has been
 # torn down and is no longer usable.
 TEST_DATA = {
-    'all_data': './tests/data/redacted_saml.har',
-    'response': './tests/data/redacted_responses.har',
-    'request': './tests/data/redacted_requests.har',
+    'multiple_requests_and_responses': './tests/data/redacted_saml.har',
+    'two_responses': './tests/data/redacted_responses.har',
+    'one_response': './tests/data/redacted_oneresponse.har',
+    'two_requests': './tests/data/redacted_requests.har',
     'no_data': './tests/data/redacted_nodata.har'
 }
 
@@ -23,28 +24,33 @@ class HarTests(unittest.TestCase):
             raise FileNotFoundError(
                 f"HAR data for testing not found! Missing:" + "\n- ".join(missing_files)
             )
-        with open(TEST_DATA['all_data'], 'r') as f:
-            cls.har_data = f.read()
+        with open(TEST_DATA['multiple_requests_and_responses'], 'r') as f:
+            cls.har_data_full = f.read()
         with open(TEST_DATA['no_data'], 'r') as f:
             cls.har_data_no_saml = f.read()
-        with open(TEST_DATA['response'], 'r') as f:
-            cls.har_data_response = f.read()
-        with open(TEST_DATA['request'], 'r') as f:
-            cls.har_data_request = f.read()
+        with open(TEST_DATA['two_responses'], 'r') as f:
+            cls.har_data_responses = f.read()
+        with open(TEST_DATA['one_response'], 'r') as f:
+            cls.har_data_one_response = f.read()
+        with open(TEST_DATA['two_requests'], 'r') as f:
+            cls.har_data_requests = f.read()
 
     def test_load_valid_har_both_saml_types(self):
-        _ = HarParser(self.har_data)
+        _ = HarParser(self.har_data_full)
 
-    def test_load_valid_har_responses_only(self):
-        _ = HarParser(self.har_data_response)
+    def test_load_valid_har_multiple_responses_only(self):
+        _ = HarParser(self.har_data_responses)
 
-    def test_load_valid_har_requests_only(self):
+    def test_load_valid_har_multiple_requests_only(self):
         with self.assertRaises(NoSAMLResponseFound):
-            _ = HarParser(self.har_data_request)
+            _ = HarParser(self.har_data_requests)
 
     def test_load_valid_har_no_saml_data(self):
         with self.assertRaises(NoSAMLResponseFound):
             _ = HarParser(self.har_data_no_saml)
+
+    def test_load_valid_har_one_response(self):
+        _ = HarParser(self.har_data_one_response)
 
     def test_load_invalid_har(self):
         with self.assertRaises(HarParsingError):

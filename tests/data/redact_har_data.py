@@ -78,6 +78,11 @@ def redact_har_file(source_file, destination_path, filename_template):
         'entries': responses}
     }
 
+    one_response_out = {'log': {
+        'pages': [p for p in pages if p['id'] == responses[0]['pageref']],
+        'entries': [responses[0]]}
+    }
+
     requests_out = {'log': {
         'pages': pages,
         'entries': requests}
@@ -96,6 +101,9 @@ def redact_har_file(source_file, destination_path, filename_template):
 
     with open(os.path.join(destination_path, filename_template + "_responses.har"), 'w') as f:
         json.dump(responses_out, f)
+
+    with open(os.path.join(destination_path, filename_template + "_oneresponse.har"), 'w') as f:
+        json.dump(one_response_out, f)
 
     with open(os.path.join(destination_path, filename_template + "_nodata.har"), 'w') as f:
         json.dump(no_saml_data_out, f)
