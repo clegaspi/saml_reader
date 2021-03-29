@@ -35,6 +35,9 @@ class HarParser(object):
 
         Args:
             data (basestring): Raw HAR data as JSON-string
+
+        Raises:
+            (HarParsingError) If there is an error reading the HAR data
         """
         try:
             self.data = json.loads(data)
@@ -50,8 +53,14 @@ class HarParser(object):
         """
         Parses the raw HAR data and returns SAML response data.
 
+        Args:
+            raw_json (dict): HAR JSON as a dictionary
+
         Returns:
             (`list` of `RawSamlData`): SAML response data found in HAR file
+
+        Raises:
+            (HarParsingError) If the HAR parsing class could not parse JSON as HAR data
         """
         try:
             parsed_har = haralyzer.HarParser(raw_json)
