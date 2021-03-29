@@ -2,42 +2,44 @@
 This script will strip a HAR file to include only SAML request and response data,
 and redact all cookie and header data.
 
-Running from the command line, the first argument is the path to the source file and
-the second is the path to the destination.
+Running from the command line, the first argument is the path to the source file, which
+should contain at least one SAML Request and one SAML Response. The second argument is the output path
+for the redacted files. The third argument is a template for the output filenames.
 """
 
 import json
 from datetime import datetime, timedelta
 from copy import deepcopy
 import sys
+import os
 
 
-def redact_har_file(source_file, destination_file):
+def redact_har_file(source_file, destination_path, filename_template):
     # Read source file
     with open(source_file, 'r') as f:
         har = json.load(f)
 
     # Find only SAML Request and Response data in the HAR file
-    response_data = [e for e in har['log']['entries']
+    entries = [e for e in har['log']['entries']
                      if e['request']['method'] == 'POST' and \
                      any(p['name'].startswith('SAML') for p in e['request'].get('postData', {}).get('params', []))]
 
     # Redact header and cookie values
-    for entry in response_data:
+    for entry in entries:
         for t in ('request', 'response'):
             for category in ('cookies', 'headers'):
                 for values_to_edit in entry[t][category]:
                     values_to_edit['value'] = "redacted"
 
     # Collect pages that match the entries found
-    page_nums = {p['pageref'] for p in response_data}
+    page_nums = {p['pageref'] for p in entries}
     pages = [p for p in har['log']['pages'] if p['id'] in page_nums]
 
     # Create a second set of SAML data entries which are one day in the future.
     # This is to test having multiple entries in the file.
     second_response_entries = []
 
-    for entry in response_data:
+    for entry in entries:
         raw_timestamp = entry['startedDateTime']
 
         # HAR timestamps have a colon in the timezone offset. Removing it here.
@@ -57,16 +59,50 @@ def redact_har_file(source_file, destination_file):
         new_entry['startedDateTime'] = new_raw_timestamp
         second_response_entries.append(new_entry)
 
-    out = {'log': {
+    responses = []
+    requests = []
+
+    for entry in entries + second_response_entries:
+        if any(p['name'] == 'SAMLRequest' for p in entry['request']['postData']['params']):
+            requests.append(entry)
+        else:
+            responses.append(entry)
+
+    both_types_out = {'log': {
         'pages': pages,
-        'entries': response_data + second_response_entries}
+        'entries': entries + second_response_entries}
     }
 
-    with open(destination_file, 'w') as f:
-        json.dump(out, f)
+    responses_out = {'log': {
+        'pages': pages,
+        'entries': responses}
+    }
+
+    requests_out = {'log': {
+        'pages': pages,
+        'entries': requests}
+    }
+
+    no_saml_data_out = {'log': {
+        'pages': pages,
+        'entries': []}
+    }
+
+    with open(os.path.join(destination_path, filename_template + "_saml.har"), 'w') as f:
+        json.dump(both_types_out, f)
+
+    with open(os.path.join(destination_path, filename_template + "_requests.har"), 'w') as f:
+        json.dump(requests_out, f)
+
+    with open(os.path.join(destination_path, filename_template + "_responses.har"), 'w') as f:
+        json.dump(responses_out, f)
+
+    with open(os.path.join(destination_path, filename_template + "_nodata.har"), 'w') as f:
+        json.dump(no_saml_data_out, f)
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 3:
-        raise ValueError("Incorrect number of arguments specified! Need only a source and destination file.")
+    if len(sys.argv) != 4:
+        raise ValueError("Incorrect number of arguments specified! "
+                         "Need source file, destination path, filename template")
     redact_har_file(*sys.argv[1:])
