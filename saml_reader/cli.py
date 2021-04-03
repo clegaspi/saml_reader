@@ -97,10 +97,10 @@ def cli(cl_args):
 
     compare = False
     compare_file = None
-    if parsed_args.compare:
+    if parsed_args.compare is not None:
         compare = True
-        if len(parsed_args.compare) > 1:
-            compare_file = parsed_args.compare[1]
+        if len(parsed_args.compare) > 0:
+            compare_file = parsed_args.compare[0]
 
     run_analysis(
         input_type=parsed_args.input_type,
