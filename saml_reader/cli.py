@@ -4,6 +4,7 @@ user interaction/display.
 """
 import sys
 import json
+from functools import partial
 
 import argparse
 
@@ -76,14 +77,13 @@ def cli(cl_args):
         print("ERROR: Cannot specify --compare and --summary-only")
         return
 
-    source = 'stdin'
+    constructor_func = TextReader.from_stdin
     filename = None
     if parsed_args.filepath is None:
         if parsed_args.clip:
-            source = 'clip'
+            constructor_func = TextReader.from_clipboard
     else:
-        source = 'file'
-        filename = parsed_args.filepath
+        constructor_func = partial(TextReader.from_file, filename=parsed_args.filepath)
 
     print(f"SAML READER")
     print(f"----------------------")
@@ -91,7 +91,7 @@ def cli(cl_args):
 
     # Parse saml data before prompting for input values to not risk clipboard being erased
     try:
-        saml_parser = TextReader(source, parsed_args.input_type, filename=filename)
+        saml_parser = constructor_func(parsed_args.input_type)
     except DataTypeInvalid:
         if parsed_args.input_type == 'har':
             print("We could not find the correct data in the HAR data specified.\n"
