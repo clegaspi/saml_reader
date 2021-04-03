@@ -3,7 +3,6 @@ import dash_html_components as html
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 
-from saml_reader.text_reader import DataTypeInvalid
 from saml_reader.cli import run_analysis, OutputStream
 
 
