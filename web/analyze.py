@@ -1,14 +1,10 @@
-from contextlib import redirect_stdout
-from io import StringIO
-
 import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 
-from saml_reader.text_reader import TextReader, DataTypeInvalid
-from saml_reader.validation.mongo import MongoVerifier
-from saml_reader.cli import display_validation_results, display_summary
+from saml_reader.text_reader import DataTypeInvalid
+from saml_reader.cli import run_analysis, OutputStream
 
 
 def analyze_layout(app):
@@ -77,7 +73,7 @@ def analyze_layout(app):
         if (n_clicks is None) and (n_submit is None) or saml_data == "":
             raise PreventUpdate
 
-        return run_analysis(data_type, saml_data)
+        return submit_analysis_to_backend(data_type, saml_data)
 
     layout = html.Div([
         data_info_layout,
@@ -89,44 +85,16 @@ def analyze_layout(app):
     return layout
 
 
-def run_analysis(data_type, saml_data):
-    report = [
-        f"SAML READER",
-        f"----------------------",
-        f"Parsing SAML data..."
-    ]
+def submit_analysis_to_backend(data_type, saml_data):
+    report = OutputStream()
 
-    try:
-        saml_parser = TextReader(data_type, saml_data)
-    except DataTypeInvalid:
-        if data_type == 'har':
-            report.append("We could not find the correct data in the HAR data specified.\n"
-                          "Check to make sure that the input data is of the correct type.")
-        else:
-            report.append(f"The input data does not appear to be the specified input type '{data_type}'.\n"
-                          f"Check to make sure that the input data is of the correct type.")
-        return "\n".join(report)
-
-    for msg in saml_parser.get_errors():
-        report.append(msg)
-
-    if not saml_parser.saml_is_valid():
-        return "\n".join(report)
-
-    report.append("------------")
-
-    verifier = MongoVerifier(
-        saml_parser.get_saml(),
-        saml_parser.get_certificate()
+    run_analysis(
+        input_type=data_type,
+        source='raw',
+        raw_data=saml_data,
+        print_analysis=True,
+        print_summary=True,
+        output_stream=report.print
     )
 
-    verifier.validate_configuration()
-
-    output = StringIO()
-    with redirect_stdout(output):
-        display_validation_results(verifier)
-        display_summary(verifier)
-
-    report.append(output.getvalue())
-
-    return "\n".join(report)
+    return report.getvalue()

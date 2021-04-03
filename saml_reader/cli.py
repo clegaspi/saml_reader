@@ -122,8 +122,18 @@ def run_analysis(
     output_stream(f"----------------------")
     output_stream(f"Parsing SAML data...")
 
-    saml_data = parse_saml_data(input_type=input_type, source=source,
-                                filepath=filepath, raw_data=raw_data)
+    try:
+        saml_data = parse_saml_data(input_type=input_type, source=source,
+                                    filepath=filepath, raw_data=raw_data)
+    except DataTypeInvalid:
+        if input_type == 'har':
+            output_stream("We could not find the correct data in the HAR data specified.\n"
+                          "Check to make sure that the input data is of the correct type.")
+        else:
+            output_stream(f"The input data does not appear to be the specified input type '{input_type}'.\n"
+                          f"Check to make sure that the input data is of the correct type.")
+        return
+
     for msg in saml_data.get_errors():
         output_stream(msg)
 
