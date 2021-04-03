@@ -105,13 +105,13 @@ def run_analysis(data_type, saml_data):
         else:
             report.append(f"The input data does not appear to be the specified input type '{data_type}'.\n"
                           f"Check to make sure that the input data is of the correct type.")
-        return
+        return "\n".join(report)
 
     for msg in saml_parser.get_errors():
         report.append(msg)
 
     if not saml_parser.saml_is_valid():
-        return report
+        return "\n".join(report)
 
     report.append("------------")
 
