@@ -349,18 +349,24 @@ class MongoComparisonValue:
         else:
             raise ValueError(f"Invalid default value '{default}' for attribute '{name}'")
 
-    def prompt_for_user_input(self):
+    def prompt_for_user_input(self, input_stream=input, output_stream=print):
         """
-        Prompt user for input using stdin.
+        Prompt user for input using stdin (by default) or another specified input stream.
+
+        Args:
+            input_stream (callable): function to gather user input. default: handle to `input()`
+            output_stream (callable): function to print user prompts. default: handle to `print()`
 
         Returns:
             (`basestring`, `list`, or `object`) The user input as a string or list, depending if multi-valued
                 or the default value if no user input provided
         """
         if self._multi_value:
-            user_input = self._get_multi_value()
+            user_input = self._get_multi_value(input_stream=input_stream,
+                                               output_stream=output_stream)
         else:
-            user_input = self._get_single_value()
+            user_input = self._get_single_value(input_stream=input_stream,
+                                                output_stream=output_stream)
 
         if user_input is None:
             return self._default
@@ -375,19 +381,28 @@ class MongoComparisonValue:
         """
         return self._name
 
-    def _get_single_value(self):
+    def _get_single_value(self, input_stream=input, output_stream=print):
         """
         Prompt user for a single value with default prompt.
+
+        Args:
+            input_stream (callable): function to gather user input. default: handle to `input()`
+            output_stream (callable): function to print user prompts. default: handle to `print()`
 
         Returns:
             (`basestring` or `object`) The user input as a string
                 or the default value if no user input provided
         """
-        return self._get_and_validate_user_input()
+        return self._get_and_validate_user_input(input_stream=input_stream,
+                                                 output_stream=output_stream)
 
-    def _get_multi_value(self):
+    def _get_multi_value(self, input_stream=input, output_stream=print):
         """
         Prompt user for a multiple values with a numbered prompt.
+
+        Args:
+            input_stream (callable): function to gather user input. default: handle to `input()`
+            output_stream (callable): function to print user prompts. default: handle to `print()`
 
         Returns:
             (`list` or `object`) The user input as a list
@@ -396,23 +411,29 @@ class MongoComparisonValue:
         input_to_store = []
         print(self._prompt)
         list_index = 1
-        user_input = self._get_and_validate_user_input(prompt=f"{list_index}.")
+        user_input = self._get_and_validate_user_input(prompt=f"{list_index}.",
+                                                       input_stream=input_stream,
+                                                       output_stream=output_stream)
         while user_input:
             input_to_store.append(user_input)
             list_index += 1
-            user_input = self._get_and_validate_user_input(prompt=f"{list_index}.")
+            user_input = self._get_and_validate_user_input(prompt=f"{list_index}.",
+                                                           input_stream=input_stream,
+                                                           output_stream=output_stream)
         if not input_to_store:
             input_to_store = self._default
 
         return input_to_store
 
-    def _get_and_validate_user_input(self, prompt=None):
+    def _get_and_validate_user_input(self, prompt=None, input_stream=input, output_stream=print):
         """
         Prompts user for input from stdin.
 
         Args:
             prompt (basestring, optional): The text to prompt the user with.
                 Default: None (prompts with self._prompt)
+            input_stream (callable): function to gather user input. default: handle to `input()`
+            output_stream (callable): function to print user prompts. default: handle to `print()`
 
         Returns:
             (`basestring`) the data input by the user. None if user inputs nothing.
@@ -425,12 +446,12 @@ class MongoComparisonValue:
             prompt += " "
 
         while True:
-            user_input = input(prompt)
+            user_input = input_stream(prompt)
             if user_input:
                 if MongoFederationConfig.validate_input(self._name, user_input):
                     return user_input
                 else:
-                    print(f"Input did not pass validation. Try again or skip the value.")
+                    output_stream(f"Input did not pass validation. Try again or skip the value.")
             else:
                 return None
 
