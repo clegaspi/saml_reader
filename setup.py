@@ -19,6 +19,7 @@ setup(
             'cryptography',
             'networkx',
             'lxml',     # This should be installed as part of python3-saml
-            'defusedxml'      # This should be installed as part of python3-saml
+            'defusedxml',      # This should be installed as part of python3-saml
+            'dash'      # For web interface
       ]
 )
