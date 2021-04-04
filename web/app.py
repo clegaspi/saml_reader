@@ -1,3 +1,5 @@
+import sys
+
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
@@ -51,4 +53,9 @@ def display_page(pathname, search):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=False, dev_tools_ui=True)
+    host = "0.0.0.0"
+    if len(sys.argv) > 1:
+        if sys.argv[1] == '--local':
+            host = "localhost"
+
+    app.run_server(host=host, debug=False, dev_tools_ui=True)
