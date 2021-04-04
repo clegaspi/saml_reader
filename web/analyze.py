@@ -42,6 +42,12 @@ def analyze_layout(app):
         )
     ])
 
+    warning_text = dcc.Markdown(
+        """It is not recommended to paste HAR data here, because HAR files are usually quite large 
+        in size and you can crash your browser. Use the CLI instead.
+        """
+    )
+
     input_box = dcc.Textarea(
         id='saml_input',
         value="Paste SAML data here",
@@ -50,6 +56,8 @@ def analyze_layout(app):
             'height': 300
         }
     )
+
+    output_box_label = html.Label("Analysis output:")
 
     output_box = dcc.Textarea(
         id='analysis_output',
@@ -75,9 +83,13 @@ def analyze_layout(app):
         return submit_analysis_to_backend(data_type, saml_data)
 
     layout = html.Div([
+        warning_text,
+        html.Br(),
         data_info_layout,
         html.Br(),
         input_box,
+        html.Br(),
+        output_box_label,
         html.Br(),
         output_box
     ])
