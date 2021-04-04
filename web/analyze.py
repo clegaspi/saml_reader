@@ -50,7 +50,7 @@ def analyze_layout(app):
 
     input_box = dcc.Textarea(
         id='saml_input',
-        value="Paste SAML data here",
+        placeholder="Paste SAML data here",
         style={
             'width': '50%',
             'height': 300
