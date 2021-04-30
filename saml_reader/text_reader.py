@@ -21,25 +21,20 @@ class TextReader:
 
     VALID_INPUT_TYPES = {'base64', 'xml', 'har'}
 
-    def __init__(self, source, input_type, filename=None):
+    def __init__(self, input_type, raw_data):
         """
         Parses input for SAML response and displays summary and analysis
 
         Args:
-            source (basestring): type of input to read, must be one of:
-                - `'clip'`: read from the system clipboard
-                - `'file'`: read from a file, must specify path in `'filename'`
-                - `'stdin'`: read from pipe via stdin (standard in)
             input_type (basestring): data type of `data`, must be
                 `'base64'`, `'xml'`, or `'har'`
-            filename (basestring, Optional): path of file to read, only required
-                if `source` is `'file'`
+            raw_data (basestring): raw data to be parsed for SAML data
 
         Returns:
             None
 
         Raises:
-            (DataTypeInvalid) if the `source` or the `input_type` is invalid
+            (DataTypeInvalid) if the `input_type` is invalid
         """
 
         self._errors = []
@@ -47,15 +42,6 @@ class TextReader:
         input_type = input_type.lower()
         if input_type not in self.VALID_INPUT_TYPES:
             raise DataTypeInvalid(f"Invalid input type: {input_type}")
-
-        if source == 'clip':
-            raw_data = self._read_clipboard()
-        elif source == 'stdin':
-            raw_data = self._read_stdin()
-        elif source == 'file':
-            raw_data = self._read_file(filename)
-        else:
-            raise DataTypeInvalid(f"Invalid source: {source}")
 
         self._valid_cert = False
         self._cert = None
@@ -140,6 +126,49 @@ class TextReader:
                     "Could not locate certificate. Identity provider info will not be available."
                 )
             self._valid_cert = self._cert is not None
+
+    @classmethod
+    def from_clipboard(cls, data_type):
+        """
+        Read data from the clipboard.
+        Args:
+            data_type (basestring): data type of `data`, must be
+                `'base64'`, `'xml'`, or `'har'`
+
+        Returns:
+            (TextReader) parsed SAML data
+        """
+        raw_data = cls._read_clipboard()
+        return cls(data_type, raw_data)
+
+    @classmethod
+    def from_stdin(cls, data_type):
+        """
+        Read data from the stdin.
+        Args:
+            data_type (basestring): data type of `data`, must be
+                `'base64'`, `'xml'`, or `'har'`
+
+        Returns:
+            (TextReader) parsed SAML data
+        """
+        raw_data = cls._read_stdin()
+        return cls(data_type, raw_data)
+
+    @classmethod
+    def from_file(cls, data_type, filename):
+        """
+        Read data from the clipboard.
+        Args:
+            data_type (basestring): data type of `data`, must be
+                `'base64'`, `'xml'`, or `'har'`
+            filename (basestring): path to file
+
+        Returns:
+            (TextReader) parsed SAML data
+        """
+        raw_data = cls._read_file(filename)
+        return cls(data_type, raw_data)
 
     @staticmethod
     def _read_file(filename):
