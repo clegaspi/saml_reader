@@ -86,7 +86,7 @@ class StandardSamlParser(BaseSamlParser):
             'certificate': lambda x: x[0].text if x else None,
             'name_id': lambda x: x[0].text if x else None,
             'name_id_format': lambda x: x[0].attrib.get('Format') if x else None,
-            'acs': lambda x: x[0][0].attrib.get('Destination') or x[0][1].attrib.get('Recipient') or None,
+            'acs': lambda x: x[0][0].attrib.get('Destination') or x[1][0].attrib.get('Recipient') or None,
             'encryption': self.__parse_encryption,
             'audience': lambda x: x[0].text if x else None,
             'issuer': lambda x: x[0].text if x else None,
@@ -171,6 +171,9 @@ class StandardSamlParser(BaseSamlParser):
             (BaseSamlParser) parsed SAML response object
         """
         value = base64 if not url_decode else unquote(base64)
+        # Strip whitespace
+        value = re.sub(r'\s+', '', value)
+
         # Check to see if this is valid base64
         rx = r'[^a-zA-Z0-9/+=]'
         if re.search(rx, value):
@@ -436,6 +439,9 @@ class RegexSamlParser(BaseSamlParser):
         """
 
         value = base64 if not url_decode else unquote(base64)
+        # Strip whitespace
+        value = re.sub(r'\s+', '', value)
+
         # Check to see if this is valid base64
         rx = r'[^a-zA-Z0-9/?=]'
         if re.search(rx, value):
