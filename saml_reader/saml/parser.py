@@ -439,6 +439,9 @@ class RegexSamlParser(BaseSamlParser):
         """
 
         value = base64 if not url_decode else unquote(base64)
+        # Strip whitespace
+        value = re.sub(r'\s+', '', value)
+
         # Check to see if this is valid base64
         rx = r'[^a-zA-Z0-9/?=]'
         if re.search(rx, value):
