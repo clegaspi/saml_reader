@@ -172,10 +172,7 @@ class StandardSamlParser(BaseSamlParser):
         """
         value = base64 if not url_decode else unquote(base64)
         # Strip whitespace
-        pattern = re.compile(r'\s+')
-        value = re.sub(pattern, '', value)
-        print(f'value:\n{value}')
-        print(f'type(value): {type(value)}')
+        value = re.sub(r'\s+', '', value)
 
         # Check to see if this is valid base64
         rx = r'[^a-zA-Z0-9/+=]'
