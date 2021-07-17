@@ -1,0 +1,18 @@
+language: python
+python:
+  - "3.6"
+# command to install dependencies
+before_install:
+  - >
+    openssl aes-256-cbc -K $encrypted_b6a0e19775d3_key -iv $encrypted_b6a0e19775d3_iv
+    -in tests/data/redacted_har_data.tar.gz.enc -out tests/data/redacted_har_data.tar.gz -d
+  - tar -zxvf tests/data/redacted_har_data.tar.gz -C tests/data
+install:
+  - sudo apt-get install libxml2-dev libxmlsec1-dev libxmlsec1-openssl
+  - pip install .
+  - pip install coverage coveralls
+# command to run tests
+script:
+  - coverage run --source=saml_reader -m pytest --verbose
+after_success:
+  - coveralls
