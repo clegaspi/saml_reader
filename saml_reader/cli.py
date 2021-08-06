@@ -8,7 +8,7 @@ import json
 import argparse
 
 from saml_reader.text_reader import TextReader
-from saml_reader.validation.mongo import MongoFederationConfig, MongoVerifier, MongoComparisonValue
+from saml_reader.validation.mongo import MongoFederationConfig, MongoSamlValidator, MongoComparisonValue
 from saml_reader.saml.parser import DataTypeInvalid
 from saml_reader import __version__
 
@@ -68,7 +68,8 @@ def cli(cl_args):
     parser.add_argument('--summary-only',
                         dest='summary_only', action='store_true', required=False,
                         help='do not run MongoDB-specific validation, only output summary')
-    parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
+    parser.add_argument('--version', action='version',
+                        version=f'%(prog)s {__version__}')
     # TODO: Add XML pretty print option
     parsed_args = parser.parse_args(cl_args)
 
@@ -91,7 +92,8 @@ def cli(cl_args):
 
     # Parse saml data before prompting for input values to not risk clipboard being erased
     try:
-        saml_parser = TextReader(source, parsed_args.input_type, filename=filename)
+        saml_parser = TextReader(
+            source, parsed_args.input_type, filename=filename)
     except DataTypeInvalid:
         if parsed_args.input_type == 'har':
             print("We could not find the correct data in the HAR data specified.\n"
@@ -115,34 +117,35 @@ def cli(cl_args):
             federation_config = prompt_for_comparison_values()
         else:
             print("Parsing comparison values...")
-            federation_config = parse_comparison_values_from_json(parsed_args.compare[0])
+            federation_config = parse_comparison_values_from_json(
+                parsed_args.compare[0])
             print("Done")
 
     print("------------")
-    verifier = MongoVerifier(saml_parser.get_saml(),
-                             saml_parser.get_certificate(),
-                             comparison_values=federation_config)
+    validator = MongoSamlValidator(saml_parser.get_saml(),
+                                   saml_parser.get_certificate(),
+                                   comparison_values=federation_config)
 
     if not parsed_args.summary_only:
-        verifier.validate_configuration()
-        display_validation_results(verifier)
+        validator.validate_configuration()
+        display_validation_results(validator)
 
     if parsed_args.summary or parsed_args.summary_only:
-        display_summary(verifier)
+        display_summary(validator)
 
 
-def display_validation_results(verifier):
+def display_validation_results(validator):
     """
     Display MongoDB Cloud-specific recommendations for identifiable issues
     with the SAML data.
 
     Args:
-        verifier (MongoVerifier): SAML and cert data
+        validator (MongoSamlValidator): SAML and cert data
 
     Returns:
         None
     """
-    error_messages = verifier.get_error_messages()
+    error_messages = validator.get_error_messages()
     if not error_messages:
         print("No errors found! :)")
         print("------------")
@@ -153,12 +156,12 @@ def display_validation_results(verifier):
         print(f"\n{msg}\n------")
 
 
-def display_summary(verifier):
+def display_summary(validator):
     """
     Display summary of parsed SAML data
 
     Args:
-        verifier (MongoVerifier): SAML and cert data
+        validator (MongoSamlValidator): SAML and cert data
 
     Returns:
         None
@@ -166,33 +169,33 @@ def display_summary(verifier):
 
     print("\n-----SAML SUMMARY-----")
 
-    if verifier.has_certificate():
+    if validator.has_certificate():
         print(f"IDENTITY PROVIDER "
               f"(from certificate):"
-              f"\n{verifier.get_identity_provider()}")
+              f"\n{validator.get_identity_provider()}")
         print("---")
     print(f"ASSERTION CONSUMER SERVICE URL:"
-          f"\n{verifier.get_assertion_consumer_service_url() or '(this value is missing)'}")
+          f"\n{validator.get_assertion_consumer_service_url() or '(this value is missing)'}")
     print("---")
     print(f"AUDIENCE URL:"
-          f"\n{verifier.get_audience_url() or '(this value is missing)'}")
+          f"\n{validator.get_audience_url() or '(this value is missing)'}")
     print("---")
     print(f"ISSUER URI:"
-          f"\n{verifier.get_issuer() or '(this value is missing)'}")
+          f"\n{validator.get_issuer() or '(this value is missing)'}")
     print("---")
     print(f"ENCRYPTION ALGORITHM:"
-          f"\n{verifier.get_encryption_algorithm() or '(this value is missing)'}")
+          f"\n{validator.get_encryption_algorithm() or '(this value is missing)'}")
     print("---")
     print(f"NAME ID:"
-          f"\nValue: {verifier.get_name_id() or '(this value is missing)'}"
-          f"\nFormat: {verifier.get_name_id_format() or '(this value is missing)'}")
+          f"\nValue: {validator.get_name_id() or '(this value is missing)'}"
+          f"\nFormat: {validator.get_name_id_format() or '(this value is missing)'}")
     print("---")
     # Checking for the required attributes for MongoDB Cloud
     print(f"ATTRIBUTES:")
-    if not verifier.get_claim_attributes():
+    if not validator.get_claim_attributes():
         print("No claim attributes found")
     else:
-        for name, value in verifier.get_claim_attributes().items():
+        for name, value in validator.get_claim_attributes().items():
             print(f"Name: {name}")
             if isinstance(value, list):
                 print("Values:")
@@ -215,14 +218,23 @@ def prompt_for_comparison_values():
           "values in the SAML response. Press Return to skip a value.")
 
     comparison_values = [
-        MongoComparisonValue('firstName', "Customer First Name:", multi_value=False),
-        MongoComparisonValue('lastName', "Customer Last Name:", multi_value=False),
-        MongoComparisonValue('email', "Customer Email Address:", multi_value=False),
-        MongoComparisonValue('acs', "MongoDB Assertion Consumer Service URL:", multi_value=False),
-        MongoComparisonValue('audience', "MongoDB Audience URL:", multi_value=False),
-        MongoComparisonValue('domains', "Domain(s) associated with IdP:", multi_value=True),
+        MongoComparisonValue(
+            'firstName', "Customer First Name:", multi_value=False),
+        MongoComparisonValue(
+            'lastName', "Customer Last Name:", multi_value=False),
+        MongoComparisonValue(
+            'email', "Customer Email Address:", multi_value=False),
+        MongoComparisonValue(
+            'acs', "MongoDB Assertion Consumer Service URL:", multi_value=False),
+        MongoComparisonValue(
+            'audience', "MongoDB Audience URL:", multi_value=False),
+        MongoComparisonValue(
+            'domains', "Domain(s) associated with IdP:", multi_value=True),
         MongoComparisonValue('issuer', "IdP Issuer URI:", multi_value=False),
-        MongoComparisonValue('encryption', "Encryption Algorithm (""SHA1"" or ""SHA256""):", multi_value=False),
+        MongoComparisonValue(
+            'cert_expiration', "Signing Certificate Expiration Date (MM/DD/YYYY):", multi_value=False),
+        MongoComparisonValue(
+            'encryption', "Encryption Algorithm (""SHA1"" or ""SHA256""):", multi_value=False),
         MongoComparisonValue('role_mapping_expected', "Is customer expecting role mapping (y/N):",
                              multi_value=False, default="N")
     ]

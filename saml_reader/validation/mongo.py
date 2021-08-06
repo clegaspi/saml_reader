@@ -22,7 +22,7 @@ VALIDATION_REGEX_BY_ATTRIB = {
 }
 
 
-class MongoVerifier:
+class MongoSamlValidator:
     """
     Interprets SAML and certificate data and compares it against expected patterns specific
     to MongoDB Cloud and entered values
@@ -281,7 +281,7 @@ class MongoFederationConfig:
 
         Args:
             name (basestring): a valid keyword
-            value (basestring): comparison value for keyword
+            value (`basestring` or `list` of `basestring`): comparison value(s) for keyword
 
         Returns:
             None
