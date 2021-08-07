@@ -8,7 +8,8 @@ import json
 import argparse
 
 from saml_reader.text_reader import TextReader
-from saml_reader.validation.mongo import MongoFederationConfig, MongoSamlValidator, MongoComparisonValue
+from saml_reader.validation.mongo import MongoSamlValidator
+from saml_reader.validation.input_validation import MongoFederationConfig, MongoComparisonValue
 from saml_reader.saml.parser import DataTypeInvalid
 from saml_reader import __version__
 
@@ -28,7 +29,7 @@ def cli(cl_args):
             - `--compare <file, optional>`: optional argument. Compare SAML data vs. data entered
                 by user. If no file is specified, application will prompt for values. If file
                 specified, must be JSON file which matches the attribute keys in
-                `mongo.VALIDATION_REGEX_BY_ATTRIB`
+                `UserInputValidation`
             - `--summary`: optional argument. Will output a summary of relevant
                 data read from SAML response.
             - `--summary-only`: optional argument. Only outputs summary info, does not perform
@@ -119,6 +120,8 @@ def cli(cl_args):
             print("Parsing comparison values...")
             federation_config = parse_comparison_values_from_json(
                 parsed_args.compare[0])
+            if not federation_config:
+                return
             print("Done")
 
     print("------------")
@@ -240,22 +243,23 @@ def prompt_for_comparison_values():
     ]
 
     for value in comparison_values:
-        federation_config.set_value(
-            value.get_name(),
-            value.prompt_for_user_input()
-        )
+        value.prompt_for_user_input()
+        if not value.is_null():
+            federation_config.set_value(value)
 
-    if federation_config.get_value('role_mapping_expected'):
-        member_of_values = MongoComparisonValue(
+    if federation_config.get_parsed_value('role_mapping_expected'):
+        member_of = MongoComparisonValue(
             'memberOf',
             "Expected role mapping group names (if unknown, leave blank):",
             multi_value=True
-        ).prompt_for_user_input()
-
-        federation_config.set_value(
-            'memberOf',
-            member_of_values
         )
+        member_of.prompt_for_user_input()
+
+        if not member_of.is_null():
+            federation_config.set_value(
+                member_of.get_name(),
+                member_of.get_value()
+            )
 
     print("------------")
 
@@ -275,7 +279,11 @@ def parse_comparison_values_from_json(filename):
     """
     with open(filename, 'r') as f:
         comparison_values = json.load(f)
-    federation_config = MongoFederationConfig(**comparison_values)
+    try:
+        federation_config = MongoFederationConfig(**comparison_values)
+    except ValueError as e:
+        print(f"Attribute '{e.args[1]}' in the provided JSON did not pass validation")
+        return None
     return federation_config
 
 

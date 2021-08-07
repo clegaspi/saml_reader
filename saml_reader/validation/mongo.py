@@ -3,23 +3,7 @@ These classes handle all data validation specific to MongoDB Cloud
 """
 import re
 from saml_reader.validation.graph_suite import TestDefinition, TestSuite, TEST_FAIL
-
-"""Regular expression to match (most) valid e-mail addresses"""
-EMAIL_REGEX_MATCH = r"\b(?i)([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})\b"
-
-"""Regular expressions to validate SAML fields and claim attributes"""
-VALIDATION_REGEX_BY_ATTRIB = {
-    'firstName': r'^\s*\S+.*$',
-    'lastName': r'^\s*\S+.*$',
-    'email': EMAIL_REGEX_MATCH,
-    'issuer': r'^\s*\S+.*$',
-    'acs': r'^https:\/\/auth\.mongodb\.com\/sso\/saml2\/[a-z0-9A-Z]{20}$',
-    'audience': r'^https:\/\/www\.okta\.com\/saml2\/service-provider\/[a-z]{20}$',
-    'encryption': r'^(?i)sha-?(1|256)$',
-    'domains': r'^(?i)[A-Z0-9.-]+?\.[A-Z]{2,}$',
-    'memberOf': r'^\s*\S+.*$',
-    'role_mapping_expected': '^(?i)[YN]$'
-}
+from saml_reader.validation.input_validation import MongoFederationConfig, UserInputValidator
 
 
 class MongoSamlValidator:
@@ -209,230 +193,6 @@ class MongoSamlValidator:
             (`list` of `str`) Error messages generated
         """
         return self._errors
-
-
-class MongoFederationConfig:
-    """
-    Stores user-provided federation configuration values for comparison with SAML data
-    """
-
-    ATTRIB_PARSING_FUNCS = {
-        'domains': lambda x: [v.strip().lower() for v in x],
-        'encryption': lambda x: "SHA" + re.findall(VALIDATION_REGEX_BY_ATTRIB['encryption'], x[0])[0],
-        'firstName': lambda x: x[0].strip(),
-        'lastName': lambda x: x[0].strip(),
-        'email': lambda x: x[0].strip(),
-        'issuer': lambda x: x[0],
-        'acs': lambda x: x[0],
-        'audience': lambda x: x[0],
-        'role_mapping_expected': lambda x: x[0].upper() == 'Y'
-    }
-
-    def __init__(self, **kwargs):
-        """
-        Set comparison values and verify they match a regular expression (input validation)
-
-        Args:
-            **kwargs: currently accepted keywords are:
-                - `issuer`: Issuer URI
-                - `audience`: Audience URL
-                - `acs`: Assertion Consumer Service URL
-                - `encryption`: Encryption algorithm
-                - `firstName`: expected value for "firstName" claim attribute
-                - `lastName`: expected value for "lastName" claim attribute
-                - `email`: expected value for Name ID and "email" claim attribute
-                - `domains`: domain names associated with the identity provider, as a
-                    string. Multiple domains separated by whitespace.
-        """
-        self._settings = dict()
-        if kwargs:
-            self.set_values(kwargs)
-
-    def get_value(self, value_name, default=None):
-        """
-        Get comparison value by name
-
-        Args:
-            value_name (basestring): name of comparison value keyword
-            default (object, optional): the value returned if the comparison value is not populated. Default: None
-
-        Returns:
-            (`basestring` or `None`) comparison value, `None` if name does not exist
-        """
-        return self._settings.get(value_name, default)
-
-    def set_values(self, value_dict):
-        """
-        Set multiple comparison values
-
-        Args:
-            value_dict (dict): comparison values, keyed by keyword name
-
-        Returns:
-            None
-        """
-        for name, value in value_dict.items():
-            self.set_value(name, value)
-
-    def set_value(self, name, value):
-        """
-        Sets a single comparison value by name and value if it matches input validation.
-        See `MongoFederationConfig.__init__()` for the list of valid keywords.
-
-        Args:
-            name (basestring): a valid keyword
-            value (`basestring` or `list` of `basestring`): comparison value(s) for keyword
-
-        Returns:
-            None
-
-        Raises:
-            (ValueError) if value doesn't pass validation or keyword is not recognized
-        """
-        if value is None:
-            return
-
-        if name in VALIDATION_REGEX_BY_ATTRIB:
-            if not isinstance(value, list):
-                value = [value]
-            if all(self.validate_input(name, v) for v in value):
-                if name in self.ATTRIB_PARSING_FUNCS:
-                    # Check if we need to parse the value
-                    value = self.ATTRIB_PARSING_FUNCS[name](value)
-                self._settings[name] = value
-            else:
-                raise ValueError(f"Attribute '{name}' did not pass input validation")
-        else:
-            raise ValueError(f"Unknown attribute name: {name}")
-
-    @staticmethod
-    def validate_input(name, value):
-        """
-        Validates input for a certain attribute against expected regex pattern
-
-        Args:
-            name (basestring): name of the attribute
-            value (basestring): value to validate
-
-        Returns:
-            (bool) True if matches, false otherwise
-        """
-        if name not in VALIDATION_REGEX_BY_ATTRIB:
-            raise ValueError(f"Unknown attribute name: {name}")
-        if value is None:
-            return True
-        return bool(re.fullmatch(VALIDATION_REGEX_BY_ATTRIB[name], value))
-
-
-class MongoComparisonValue:
-    """
-    Collects comparison value input from the user through stdin prompts
-    """
-    def __init__(self, name, prompt, multi_value=False, default=None):
-        """
-        Create a comparison value object for a given value type.
-
-        Args:
-            name (basestring): name of the input value, must be contained in VALIDATION_REGEX_BY_ATTRIB.
-            prompt (basestring): the text with which to prompt the user during input
-            multi_value (bool, optional): True if the user should be prompted for more than one input value,
-                False will only prompt for one input value. Default: False (one input)
-            default (object, optional): The default value to set if the user does not input anything. Default: None
-        """
-        if name not in VALIDATION_REGEX_BY_ATTRIB:
-            raise ValueError(f"Unknown value name: {name}")
-        self._name = name
-        self._prompt = prompt
-        self._multi_value = multi_value
-        if MongoFederationConfig.validate_input(name, default):
-            self._default = default
-        else:
-            raise ValueError(f"Invalid default value '{default}' for attribute '{name}'")
-
-    def prompt_for_user_input(self):
-        """
-        Prompt user for input using stdin.
-
-        Returns:
-            (`basestring`, `list`, or `object`) The user input as a string or list, depending if multi-valued
-                or the default value if no user input provided
-        """
-        if self._multi_value:
-            user_input = self._get_multi_value()
-        else:
-            user_input = self._get_single_value()
-
-        if user_input is None:
-            return self._default
-        return user_input
-
-    def get_name(self):
-        """
-        Get value name
-
-        Returns:
-            (basestring) value name
-        """
-        return self._name
-
-    def _get_single_value(self):
-        """
-        Prompt user for a single value with default prompt.
-
-        Returns:
-            (`basestring` or `object`) The user input as a string
-                or the default value if no user input provided
-        """
-        return self._get_and_validate_user_input()
-
-    def _get_multi_value(self):
-        """
-        Prompt user for a multiple values with a numbered prompt.
-
-        Returns:
-            (`list` or `object`) The user input as a list
-                or the default value if no user input provided
-        """
-        input_to_store = []
-        print(self._prompt)
-        list_index = 1
-        user_input = self._get_and_validate_user_input(prompt=f"{list_index}.")
-        while user_input:
-            input_to_store.append(user_input)
-            list_index += 1
-            user_input = self._get_and_validate_user_input(prompt=f"{list_index}.")
-        if not input_to_store:
-            input_to_store = self._default
-
-        return input_to_store
-
-    def _get_and_validate_user_input(self, prompt=None):
-        """
-        Prompts user for input from stdin.
-
-        Args:
-            prompt (basestring, optional): The text to prompt the user with.
-                Default: None (prompts with self._prompt)
-
-        Returns:
-            (`basestring`) the data input by the user. None if user inputs nothing.
-        """
-        if prompt is None:
-            prompt = self._prompt
-
-        if not re.match(r'.*\s$', prompt):
-            # If the prompt doesn't end with a whitespace character, add a space for padding
-            prompt += " "
-
-        while True:
-            user_input = input(prompt)
-            if user_input:
-                if MongoFederationConfig.validate_input(self._name, user_input):
-                    return user_input
-                else:
-                    print(f"Input did not pass validation. Try again or skip the value.")
-            else:
-                return None
 
 
 class MongoTestSuite(TestSuite):
@@ -684,7 +444,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) True if a comparison value exists, False otherwise
         """
-        return context.get('comparison_values').get_value('issuer') is not None
+        return context.get('comparison_values').get_parsed_value('issuer') is not None
 
     @staticmethod
     def verify_issuer(context):
@@ -697,7 +457,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) True if they match, False otherwise
         """
-        return context.get('saml').get_issuer_uri() == context.get('comparison_values').get_value('issuer')
+        return context.get('saml').get_issuer_uri() == context.get('comparison_values').get_parsed_value('issuer')
 
     @staticmethod
     def verify_issuer_pattern(context):
@@ -710,7 +470,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) True if matches the regex, False otherwise
         """
-        return MongoTestSuite._matches_regex(VALIDATION_REGEX_BY_ATTRIB['issuer'],
+        return MongoTestSuite._matches_regex(UserInputValidator().get_validation_regex('issuer'),
                                              context.get('saml').get_issuer_uri())
 
     # Audience URL tests
@@ -738,7 +498,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) True if a comparison value exists, False otherwise
         """
-        return context.get('comparison_values').get_value('audience') is not None
+        return context.get('comparison_values').get_parsed_value('audience') is not None
 
     @staticmethod
     def verify_audience_url(context):
@@ -752,7 +512,7 @@ class MongoTestSuite(TestSuite):
             (bool) True if they match, False otherwise
         """
         return context.get('saml').get_audience_url() == \
-               context.get('comparison_values').get_value('audience')
+               context.get('comparison_values').get_parsed_value('audience')
 
     @staticmethod
     def verify_audience_url_pattern(context):
@@ -765,7 +525,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) True if matches the regex, False otherwise
         """
-        return MongoTestSuite._matches_regex(VALIDATION_REGEX_BY_ATTRIB['audience'],
+        return MongoTestSuite._matches_regex(UserInputValidator().get_validation_regex('audience'),
                                              context.get('saml').get_audience_url())
 
     # Assertion Consumer Service URL tests
@@ -793,7 +553,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) True if a comparison value exists, False otherwise
         """
-        return context.get('comparison_values').get_value('acs') is not None
+        return context.get('comparison_values').get_parsed_value('acs') is not None
 
     @staticmethod
     def verify_assertion_consumer_service_url(context):
@@ -807,7 +567,7 @@ class MongoTestSuite(TestSuite):
             (bool) True if they match, False otherwise
         """
         return context.get('saml').get_assertion_consumer_service_url() == \
-               context.get('comparison_values').get_value('acs')
+               context.get('comparison_values').get_parsed_value('acs')
 
     @staticmethod
     def verify_assertion_consumer_service_url_pattern(context):
@@ -820,7 +580,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) True if matches the regex, False otherwise
         """
-        return MongoTestSuite._matches_regex(VALIDATION_REGEX_BY_ATTRIB['acs'],
+        return MongoTestSuite._matches_regex(UserInputValidator().get_validation_regex('acs'),
                                              context.get('saml').get_assertion_consumer_service_url())
 
     # Encryption algorithm tests
@@ -848,7 +608,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) True if a comparison value exists, False otherwise
         """
-        return context.get('comparison_values').get_value('encryption') is not None
+        return context.get('comparison_values').get_parsed_value('encryption') is not None
 
     @staticmethod
     def verify_encryption_algorithm(context):
@@ -864,7 +624,7 @@ class MongoTestSuite(TestSuite):
 
         # expected encryption algorithm format expected to be "SHA1" or "SHA256"
         return context.get('saml').get_encryption_algorithm() == \
-               context.get('comparison_values').get_value('encryption')
+               context.get('comparison_values').get_parsed_value('encryption')
 
     @staticmethod
     def verify_encryption_algorithm_pattern(context):
@@ -877,7 +637,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) True if matches the regex, False otherwise
         """
-        return MongoTestSuite._matches_regex(VALIDATION_REGEX_BY_ATTRIB['encryption'],
+        return MongoTestSuite._matches_regex(UserInputValidator().get_validation_regex('encryption'),
                                              context.get('saml').get_encryption_algorithm())
 
     # Name ID and format tests
@@ -893,7 +653,7 @@ class MongoTestSuite(TestSuite):
             (bool) True if they match, False otherwise
         """
         return context.get('saml').get_subject_name_id().lower() == \
-               context.get('comparison_values').get_value('email').lower()
+               context.get('comparison_values').get_parsed_value('email').lower()
 
     @staticmethod
     def verify_name_id_exists(context):
@@ -919,7 +679,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) True if matches the regex, False otherwise
         """
-        return MongoTestSuite._matches_regex(EMAIL_REGEX_MATCH,
+        return MongoTestSuite._matches_regex(UserInputValidator().get_validation_regex('email'),
                                              context.get('saml').get_subject_name_id())
 
     @staticmethod
@@ -974,7 +734,7 @@ class MongoTestSuite(TestSuite):
             (bool) true if matches, false otherwise
         """
         return MongoTestSuite._matches_regex(
-            VALIDATION_REGEX_BY_ATTRIB['firstName'],
+            UserInputValidator().get_validation_regex('firstName'),
             context.get('saml').get_attributes().get('firstName')
         )
 
@@ -986,7 +746,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) true if comparison value exists, false otherwise
         """
-        return context.get('comparison_values').get_value('firstName') is not None
+        return context.get('comparison_values').get_parsed_value('firstName') is not None
 
     @staticmethod
     def verify_first_name(context):
@@ -996,7 +756,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) true if matches, false otherwise
         """
-        return context.get('comparison_values').get_value('firstName').lower() == \
+        return context.get('comparison_values').get_parsed_value('firstName').lower() == \
                context.get('saml').get_attributes().get('firstName').lower()
 
     @staticmethod
@@ -1018,7 +778,7 @@ class MongoTestSuite(TestSuite):
             (bool) true if matches, false otherwise
         """
         return MongoTestSuite._matches_regex(
-            VALIDATION_REGEX_BY_ATTRIB['lastName'],
+            UserInputValidator().get_validation_regex('lastName'),
             context.get('saml').get_attributes().get('lastName')
         )
 
@@ -1030,7 +790,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) true if comparison value exists, false otherwise
         """
-        return context.get('comparison_values').get_value('lastName') is not None
+        return context.get('comparison_values').get_parsed_value('lastName') is not None
 
     @staticmethod
     def verify_last_name(context):
@@ -1040,7 +800,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) true if matches, false otherwise
         """
-        return context.get('comparison_values').get_value('lastName').lower() == \
+        return context.get('comparison_values').get_parsed_value('lastName').lower() == \
                context.get('saml').get_attributes().get('lastName').lower()
 
     @staticmethod
@@ -1062,7 +822,7 @@ class MongoTestSuite(TestSuite):
             (bool) true if matches, false otherwise
         """
         return MongoTestSuite._matches_regex(
-            VALIDATION_REGEX_BY_ATTRIB['email'],
+            UserInputValidator().get_validation_regex('email'),
             context.get('saml').get_attributes().get('email')
         )
 
@@ -1074,7 +834,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) true if comparison value exists, false otherwise
         """
-        return context.get('comparison_values').get_value('email') is not None
+        return context.get('comparison_values').get_parsed_value('email') is not None
 
     @staticmethod
     def verify_email(context):
@@ -1084,7 +844,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) true if matches, false otherwise
         """
-        return context.get('comparison_values').get_value('email').lower() == \
+        return context.get('comparison_values').get_parsed_value('email').lower() == \
                context.get('saml').get_attributes().get('email').lower()
 
     @staticmethod
@@ -1117,7 +877,7 @@ class MongoTestSuite(TestSuite):
         """
         return all(
             MongoTestSuite._matches_regex(
-                VALIDATION_REGEX_BY_ATTRIB['memberOf'], value
+                UserInputValidator().get_validation_regex('memberOf'), value
             ) for value in context.get('saml').get_attributes().get('memberOf', [])
         )
 
@@ -1130,7 +890,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) true if attribute exists and customer expects it, false otherwise
         """
-        return not context.get('comparison_values').get_value('role_mapping_expected', False)
+        return not context.get('comparison_values').get_parsed_value('role_mapping_expected', False)
 
     @staticmethod
     def verify_member_of_comparison_exists(context):
@@ -1140,7 +900,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) true if comparison value exists, false otherwise
         """
-        return context.get('comparison_values').get_value('memberOf') is not None
+        return context.get('comparison_values').get_parsed_value('memberOf') is not None
 
     @staticmethod
     def verify_member_of(context):
@@ -1153,7 +913,7 @@ class MongoTestSuite(TestSuite):
         member_of_groups = context.get('saml').get_attributes().get('memberOf', [])
         return all(
             group in member_of_groups
-            for group in context.get('comparison_values').get_value('memberOf', [])
+            for group in context.get('comparison_values').get_parsed_value('memberOf', [])
         )
 
     # Name ID, email, and domain tests
@@ -1181,7 +941,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) True if a comparison exists, False otherwise
         """
-        return context.get('comparison_values').get_value('domains') is not None
+        return context.get('comparison_values').get_parsed_value('domains') is not None
 
     @staticmethod
     def verify_domain_in_name_id(context):
@@ -1192,7 +952,7 @@ class MongoTestSuite(TestSuite):
             (bool) True if Name ID ends with one of the domains, False otherwise
         """
         return any(context.get('saml').get_subject_name_id().lower().endswith('@' + domain)
-                   for domain in context.get('comparison_values').get_value('domains'))
+                   for domain in context.get('comparison_values').get_parsed_value('domains'))
 
     @staticmethod
     def verify_domain_in_email(context):
@@ -1203,7 +963,7 @@ class MongoTestSuite(TestSuite):
             (bool) True if email contains ends with one of the domains, False otherwise
         """
         return any(context.get('saml').get_attributes().get('email').lower().endswith('@' + domain)
-                   for domain in context.get('comparison_values').get_value('domains'))
+                   for domain in context.get('comparison_values').get_parsed_value('domains'))
 
     @staticmethod
     def verify_domain_in_comparison_email(context):
@@ -1214,8 +974,8 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) True if email contains ends with one of the domains, False otherwise
         """
-        return any(context.get('comparison_values').get_value('email').lower().endswith('@' + domain)
-                   for domain in context.get('comparison_values').get_value('domains'))
+        return any(context.get('comparison_values').get_parsed_value('email').lower().endswith('@' + domain)
+                   for domain in context.get('comparison_values').get_parsed_value('domains'))
 
 
 class ValidationReport:
@@ -1274,7 +1034,7 @@ class ValidationReport:
         return f"The required '{attribute_name}' claim attribute does not match " + \
                "the value entered for comparison." + \
                f"\nSAML value: {self._saml.get_attributes().get(attribute_name)}" + \
-               f"\nSpecified comparison value: {self._comparison_values.get_value(attribute_name)}" + \
+               f"\nSpecified comparison value: {self._comparison_values.get_parsed_value(attribute_name)}" + \
                "\n\nGenerally, this means that the identity provider configuration needs\n" + \
                "to be reconfigured to match the expected values"
 
@@ -1354,7 +1114,7 @@ class ValidationReport:
                 f"The optional 'memberOf' claim attribute is missing one or more values entered for comparison." + \
                 f"\nSAML value:" + self._print_a_list("\n - {}", self._saml.get_attributes().get('memberOf', [])) + \
                 f"\nSpecified comparison value:" + self._print_a_list(
-                    "\n - {}", self._comparison_values.get_value('memberOf', [])) + \
+                    "\n - {}", self._comparison_values.get_parsed_value('memberOf', [])) + \
                 "\n\nGenerally, this means that the user's account in the customer Active Directory\n" + \
                 "needs to be added to the correct group.",
 
@@ -1363,7 +1123,7 @@ class ValidationReport:
                 "The 'email' attribute does not contain one of the federated domains specified:\n" +
                 f"SAML 'email' attribute value: {self._saml.get_subject_name_id()}\n" +
                 f"Specified valid domains:" +
-                self._print_a_list("\n - {}", self._comparison_values.get_value('domains', [])) +
+                self._print_a_list("\n - {}", self._comparison_values.get_parsed_value('domains', [])) +
                 "\n\nIf the 'email' attribute does not contain a verified domain name, it may be because\n" +
                 "the source Active Directory field does not contain the user's e-mail address.\n" +
                 "The source field may contain an internal username or other value instead.\n" +
@@ -1374,16 +1134,16 @@ class ValidationReport:
             'compare_domain_comparison_email':
                 "The specified comparison e-mail value does not contain\n" +
                 "one of the federated domains specified:\n" +
-                f"Specified e-mail value: {self._comparison_values.get_value('email')}\n" +
+                f"Specified e-mail value: {self._comparison_values.get_parsed_value('email')}\n" +
                 f"Specified valid domains:" +
-                self._print_a_list("\n - {}", self._comparison_values.get_value('domains', [])) +
+                self._print_a_list("\n - {}", self._comparison_values.get_parsed_value('domains', [])) +
                 "\n\nIf the e-mail specified is the user's MongoDB username, then the Atlas\n" +
                 "identity provider configuration likely has the incorrect domain(s) verified.",
             'compare_domain_name_id':
                 "The Name ID does not contain one of the federated domains specified:\n" +
                 f"Name ID value: {self._saml.get_subject_name_id()}\n" +
                 f"Specified valid domains:" +
-                self._print_a_list("\n - {}", self._comparison_values.get_value('domains', [])) +
+                self._print_a_list("\n - {}", self._comparison_values.get_parsed_value('domains', [])) +
                 "\n\nIf the Name ID does not contain a verified domain name, it may be because\n" +
                 "the source Active Directory field does not contain the user's e-mail address.\n" +
                 "The source field may contain an internal username or other value instead.",
@@ -1392,7 +1152,7 @@ class ValidationReport:
             'compare_email_name_id':
                 "The Name ID does not match the provided e-mail value:\n" +
                 f"Name ID value: {self._saml.get_subject_name_id()}\n" +
-                f"Specified email value: {self._comparison_values.get_value('email')}" +
+                f"Specified email value: {self._comparison_values.get_parsed_value('email')}" +
                 "\n\nThis is not necessarily an error, but may indicate there is a misconfiguration.\n" +
                 "The value in Name ID will be the user's login username and the value in the\n" +
                 "email attribute will be the address where the user receives email messages.",
@@ -1412,7 +1172,7 @@ class ValidationReport:
             'match_issuer':
                 "The Issuer URI in the SAML response does not match the specified comparison value:\n" +
                 f"SAML value: {self._saml.get_issuer_uri()}\n" +
-                f"Specified comparison value: {self._comparison_values.get_value('issuer')}" +
+                f"Specified comparison value: {self._comparison_values.get_parsed_value('issuer')}" +
                 "\n\nGenerally, this means that the Atlas configuration needs " +
                 "to be set to match the SAML value",
 
@@ -1426,7 +1186,7 @@ class ValidationReport:
             'match_audience':
                 "The Audience URL in the SAML response does not match the specified comparison value:\n" +
                 f"SAML value: {self._saml.get_audience_url()}\n" +
-                f"Specified comparison value: {self._comparison_values.get_value('audience')}" +
+                f"Specified comparison value: {self._comparison_values.get_parsed_value('audience')}" +
                 "\n\nGenerally, this means that the Atlas configuration needs " +
                 "to be set to match the SAML value",
 
@@ -1441,7 +1201,7 @@ class ValidationReport:
                 "The Assertion Consumer Service URL in the SAML response does not match the " +
                 "specified comparison value:\n" +
                 f"SAML value: {self._saml.get_assertion_consumer_service_url()}\n" +
-                f"Specified comparison value: {self._comparison_values.get_value('acs')}" +
+                f"Specified comparison value: {self._comparison_values.get_parsed_value('acs')}" +
                 "\n\nThis means that the identity provider configuration needs\n" +
                 "to be reconfigured to match the expected value",
 
@@ -1457,7 +1217,7 @@ class ValidationReport:
                 "match the specified comparison value:\n" +
                 f"SAML value: {self._saml.get_encryption_algorithm()}\n" +
                 f"Specified comparison value: " +
-                f"{self._comparison_values.get_value('encryption')}" +
+                f"{self._comparison_values.get_parsed_value('encryption')}" +
                 "\n\nGenerally, this means that the Atlas configuration needs " +
                 "to be set to match the SAML value"
         }
