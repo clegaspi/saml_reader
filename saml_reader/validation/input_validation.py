@@ -1,4 +1,5 @@
 import re
+from datetime import datetime
 
 """Regular expression to match (most) valid e-mail addresses"""
 EMAIL_REGEX_MATCH = r"\b(?i)([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})\b"
@@ -51,6 +52,15 @@ class UserInputValidator:
         raise ValueError(f"Regex for attribute name '{attribute_name}' not found")
 
     def _validate_cert_expiration(self, value):
+        try:
+            # Make sure it's a correctly-formatted date
+            date = datetime.strptime(value, '%m/%d/%Y')
+        except ValueError as e:
+            if "does not match format" in e.args[0]: 
+                return False
+        if date < datetime.now():
+            # Date must be in the future
+            return False
         return True
 
 
