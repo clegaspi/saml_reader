@@ -1,9 +1,6 @@
 import re
 from datetime import datetime
 
-"""Regular expression to match (most) valid e-mail addresses"""
-EMAIL_REGEX_MATCH = r"\b(?i)([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})\b"
-
 
 class _NullUserInput:
     pass
