@@ -67,3 +67,6 @@ class Certificate(object):
             (basestring) subject common name
         """
         return self.get_subject().get("CN")
+
+    def get_expiration_date(self):
+        return self._certificate.not_valid_after.date()
