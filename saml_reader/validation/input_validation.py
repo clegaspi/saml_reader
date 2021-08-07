@@ -73,7 +73,7 @@ class UserInputParser:
             'lastName': lambda x: x.strip(),
             'email': lambda x: x.strip(),
             'role_mapping_expected': lambda x: x.upper() == 'Y',
-            'cert_expiration': lambda x: datetime.strptime(x, '%m/%d/%Y')
+            'cert_expiration': lambda x: datetime.strptime(x, '%m/%d/%Y').date()
         }
 
     def parse(self, attribute_name, value):
