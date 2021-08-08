@@ -1,5 +1,5 @@
 """
-These classes handle all data validation specific to MongoDB Cloud
+These classes handle SAML data validation specific to MongoDB Cloud
 """
 import re
 from datetime import datetime
@@ -11,7 +11,7 @@ from saml_reader.validation.input_validation import MongoFederationConfig, UserI
 class MongoSamlValidator:
     """
     Interprets SAML and certificate data and compares it against expected patterns specific
-    to MongoDB Cloud and entered values
+    to MongoDB Cloud and entered comparison values
     """
 
     def __init__(self, saml, cert=None, comparison_values=None):
@@ -121,7 +121,7 @@ class MongoSamlValidator:
         Get SAML signing certificate.
 
         Returns:
-            (`saml_reader.cert.Certificate` or `None`) Certificate object, if valid one found in SAML, otherwise None
+            (`Certificate` or `None`) Certificate object, if valid one found in SAML, otherwise None
         """
         return self._cert
 
@@ -238,6 +238,8 @@ class MongoTestSuite(TestSuite):
 
         Args:
             saml (BaseSamlParser): parsed SAML data
+            certificate (Certificate, optional): SAML signing certificate, if one was
+                provided in the SAML data. Default: None (no certificate available)
             comparison_values (MongoFederationConfig, optional): comparison values to
                 compare with data in SAML response. Default: None (no comparison
                 tests will be performed)
@@ -1061,8 +1063,12 @@ class ValidationReport:
 
         Args:
             saml (BaseSamlParser): parsed SAML data
+            certificate (`Certificate` or `None`): SAML signing certificate
             comparison_values (MongoFederationConfig): comparison data
         """
+        # TODO: We should probably overhaul this class so that it doesn't require
+        #       valid data, meaning that it should skip building messages that depend
+        #       on having data that isn't available (like the certificate).
         self._saml = saml
         self._certificate = certificate
         self._comparison_values = comparison_values
@@ -1130,7 +1136,7 @@ class ValidationReport:
 
     def _compile_messages(self):
         """
-        Generates messages for failed tests based on provided SAML and comparison data.
+        Generates messages for failed tests based on provided SAML, certificate, and comparison data.
 
         Any future tests that require a report be generated should they fail should have
         an entry added to the `messages` dict with the test name as the key.
