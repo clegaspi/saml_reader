@@ -48,7 +48,11 @@ class MongoSamlValidator:
             None
         """
         self._errors = []
-        test_suite = MongoTestSuite(self._saml, self._comparison_values)
+        test_suite = MongoTestSuite(
+            self._saml,
+            comparison_values=self._comparison_values,
+            certificate=self._cert
+        )
         test_suite.run()
         self._build_report(test_suite)
         self._validated = True
@@ -78,7 +82,7 @@ class MongoSamlValidator:
 
         # Get the report messages for the failed tests
         messages = ValidationReport(
-            self._saml, self._comparison_values
+            self._saml, self._cert, self._comparison_values
         ).get_messages_by_name(
             failed_tests
         )
@@ -111,6 +115,15 @@ class MongoSamlValidator:
         if self._cert:
             return self._cert.get_organization_name() or self._cert.get_common_name()
         return None
+
+    def get_certificate(self):
+        """
+        Get SAML signing certificate.
+
+        Returns:
+            (`saml_reader.cert.Certificate` or `None`) Certificate object, if valid one found in SAML, otherwise None
+        """
+        return self._cert
 
     def get_issuer(self):
         """
@@ -219,7 +232,7 @@ class MongoTestSuite(TestSuite):
         'email'
     }
 
-    def __init__(self, saml, comparison_values=None):
+    def __init__(self, saml, certificate=None, comparison_values=None):
         """
         Create test suite with supplied SAML and comparison data.
 
@@ -232,7 +245,8 @@ class MongoTestSuite(TestSuite):
         super().__init__()
         self.set_context({
             'saml': saml,
-            'comparison_values': comparison_values or MongoFederationConfig()
+            'comparison_values': comparison_values or MongoFederationConfig(),
+            'certificate': certificate
         })
         self._tests = self._get_tests()
 
@@ -395,16 +409,16 @@ class MongoTestSuite(TestSuite):
             
             # Certificate tests
             TestDefinition("exists_certificate", MongoTestSuite.verify_certificate_exists,
-                           required_context=['saml']),
+                           required_context=['certificate']),
             TestDefinition("certificate_not_expired", MongoTestSuite.verify_certificate_not_expired,
                            dependencies=['exists_certificate'],
-                           required_context=['saml']),
+                           required_context=['certificate']),
             TestDefinition("exists_comparison_cert_date", MongoTestSuite.verify_certificate_expiry_comparison_exists,
                            dependencies=['certificate_not_expired'],
                            required_context=['comparison_values']),
             TestDefinition("match_certificate_expiry", MongoTestSuite.verify_certificate_expiry,
                            dependencies=['exists_comparison_cert_date'],
-                           required_context=['saml', 'comparison_values']),
+                           required_context=['certificate', 'comparison_values']),
         ]
         return tests
 
@@ -1001,7 +1015,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) True if a valid Certificate object exists, False otherwise
         """
-        return context.get('saml').get_certificate() is not None
+        return context.get('certificate') is not None
 
     @staticmethod
     def verify_certificate_not_expired(context):
@@ -1011,7 +1025,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) True if certificate expires in the future, False otherwise
         """
-        return context.get('saml').get_certificate().get_expiration_date() > datetime.now().date()
+        return context.get('certificate').get_expiration_date() > datetime.now().date()
 
     @staticmethod
     def verify_certificate_expiry_comparison_exists(context):
@@ -1032,7 +1046,7 @@ class MongoTestSuite(TestSuite):
             (bool) True if they are the same, False otherwise
         """
         return context.get('comparison_values').get_parsed_value('cert_expiration') == \
-            context.get('saml').get_certificate().get_expiration_date()
+            context.get('certificate').get_expiration_date()
 
 
 class ValidationReport:
@@ -1041,7 +1055,7 @@ class ValidationReport:
 
     All future tests that need reporting should be added in this class.
     """
-    def __init__(self, saml, comparison_values):
+    def __init__(self, saml, certificate, comparison_values):
         """
         Build reporter object.
 
@@ -1050,6 +1064,7 @@ class ValidationReport:
             comparison_values (MongoFederationConfig): comparison data
         """
         self._saml = saml
+        self._certificate = certificate
         self._comparison_values = comparison_values
         self._messages = None
         self._compile_messages()
@@ -1277,22 +1292,25 @@ class ValidationReport:
                 f"{self._comparison_values.get_parsed_value('encryption')}" +
                 "\n\nGenerally, this means that the Atlas configuration needs " +
                 "to be set to match the SAML value",
-
-            # Certificate tests
-            'certificate_not_expired': 
-                f"The SAML signing certificate included with the SAML response appears expired\n" +
-                f"or it expires today.\n" +
-                f"Expiration date (MM/DD/YYYY): {self._saml.get_certificate().get_expiration_date():%m/%d/%Y}\n" +
-                "\nGenerally, this means that the identity provider needs to be updated with a\n" +
-                "valid certificate pair, and that the public certificate of the pair must be re-uploaded to Atlas.",
-            'match_certificate_expiry':
-                f"The expiration of the SAML signing certificate included with the SAML response\n" +
-                f"does not match the specified expiration date.\n" +
-                f"SAML value (MM/DD/YYYY): {self._saml.get_certificate().get_expiration_date():%m/%d/%Y}\n" +
-                f"Specified comparison value: " +
-                f"{self._comparison_values.get_parsed_value('cert_expiration'):%m/%d/%Y}" +
-                "\n\nThis is a likely indicator that the SAML signing certiticate uploaded to Atlas is not the\n" +
-                "correct certificate. Please direct the customer to upload the correct public certificate.",
         }
+
+        if self._certificate is not None:
+            messages.update({
+                # Certificate tests
+                'certificate_not_expired': 
+                    f"The SAML signing certificate included with the SAML response appears expired\n" +
+                    f"or it expires today.\n" +
+                    f"Expiration date (MM/DD/YYYY): {self._certificate.get_expiration_date():%m/%d/%Y}\n" +
+                    "\nGenerally, this means that the identity provider needs to be updated with a\n" +
+                    "valid certificate pair, and that the public certificate of the pair must be re-uploaded to Atlas.",
+                'match_certificate_expiry':
+                    f"The expiration of the SAML signing certificate included with the SAML response\n" +
+                    f"does not match the specified expiration date.\n" +
+                    f"SAML value (MM/DD/YYYY): {self._certificate.get_expiration_date():%m/%d/%Y}\n" +
+                    f"Specified comparison value (MM/DD/YYYY): " +
+                    f"{self._comparison_values.get_parsed_value('cert_expiration') or datetime.now():%m/%d/%Y}" +
+                    "\n\nThis is a likely indicator that the SAML signing certiticate uploaded to Atlas is not the\n" +
+                    "correct certificate. Please direct the customer to upload the correct public certificate.",
+            })
 
         self._messages = messages
