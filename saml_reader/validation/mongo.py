@@ -2,6 +2,8 @@
 These classes handle all data validation specific to MongoDB Cloud
 """
 import re
+from datetime import datetime
+
 from saml_reader.validation.graph_suite import TestDefinition, TestSuite, TEST_FAIL
 from saml_reader.validation.input_validation import MongoFederationConfig, UserInputValidator
 
@@ -389,6 +391,19 @@ class MongoTestSuite(TestSuite):
                            required_context=['comparison_values']),
             TestDefinition("match_encryption", MongoTestSuite.verify_encryption_algorithm,
                            dependencies=['exists_comparison_encryption'],
+                           required_context=['saml', 'comparison_values']),
+            
+            # Certificate tests
+            TestDefinition("exists_certificate", MongoTestSuite.verify_certificate_exists,
+                           required_context=['saml']),
+            TestDefinition("certificate_not_expired", MongoTestSuite.verify_certificate_not_expired,
+                           dependencies=['exists_certificate'],
+                           required_context=['saml']),
+            TestDefinition("exists_comparison_cert_date", MongoTestSuite.verify_certificate_expiry_comparison_exists,
+                           dependencies=['certificate_not_expired'],
+                           required_context=['comparison_values']),
+            TestDefinition("match_certificate_expiry", MongoTestSuite.verify_certificate_expiry,
+                           dependencies=['exists_comparison_cert_date'],
                            required_context=['saml', 'comparison_values']),
         ]
         return tests
@@ -976,6 +991,48 @@ class MongoTestSuite(TestSuite):
         """
         return any(context.get('comparison_values').get_parsed_value('email').lower().endswith('@' + domain)
                    for domain in context.get('comparison_values').get_parsed_value('domains'))
+
+    @staticmethod
+    def verify_certificate_exists(context):
+        """
+        Checks if the SAML signing certificate is included in the SAML response and that it generated
+        a valid Certificate object.
+
+        Returns:
+            (bool) True if a valid Certificate object exists, False otherwise
+        """
+        return context.get('saml').get_certificate() is not None
+
+    @staticmethod
+    def verify_certificate_not_expired(context):
+        """
+        Checks if the SAML signing certificate has an expiration date in the future (not including today)
+
+        Returns:
+            (bool) True if certificate expires in the future, False otherwise
+        """
+        return context.get('saml').get_certificate().get_expiration_date() > datetime.now().date()
+
+    @staticmethod
+    def verify_certificate_expiry_comparison_exists(context):
+        """
+        Checks if the user specified a date to compare against the SAML response certificate expiration
+        
+        Returns:
+            (bool) True if specified, False otherwise
+        """
+        return context.get('comparison_values').get_parsed_value('cert_expiration') is not None
+    
+    @staticmethod
+    def verify_certificate_expiry(context):
+        """
+        Checks if the specified expiration date matches the SAML response certificate expiration
+        
+        Returns:
+            (bool) True if they are the same, False otherwise
+        """
+        return context.get('comparison_values').get_parsed_value('cert_expiration') == \
+            context.get('saml').get_certificate().get_expiration_date()
 
 
 class ValidationReport:
