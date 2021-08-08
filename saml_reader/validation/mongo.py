@@ -1276,7 +1276,23 @@ class ValidationReport:
                 f"Specified comparison value: " +
                 f"{self._comparison_values.get_parsed_value('encryption')}" +
                 "\n\nGenerally, this means that the Atlas configuration needs " +
-                "to be set to match the SAML value"
+                "to be set to match the SAML value",
+
+            # Certificate tests
+            'certificate_not_expired': 
+                f"The SAML signing certificate included with the SAML response appears expired\n" +
+                f"or it expires today.\n" +
+                f"Expiration date (MM/DD/YYYY): {self._saml.get_certificate().get_expiration_date():%m/%d/%Y}\n" +
+                "\nGenerally, this means that the identity provider needs to be updated with a\n" +
+                "valid certificate pair, and that the public certificate of the pair must be re-uploaded to Atlas.",
+            'match_certificate_expiry':
+                f"The expiration of the SAML signing certificate included with the SAML response\n" +
+                f"does not match the specified expiration date.\n" +
+                f"SAML value (MM/DD/YYYY): {self._saml.get_certificate().get_expiration_date():%m/%d/%Y}\n" +
+                f"Specified comparison value: " +
+                f"{self._comparison_values.get_parsed_value('cert_expiration'):%m/%d/%Y}" +
+                "\n\nThis is a likely indicator that the SAML signing certiticate uploaded to Atlas is not the\n" +
+                "correct certificate. Please direct the customer to upload the correct public certificate.",
         }
 
         self._messages = messages
