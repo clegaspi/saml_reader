@@ -177,6 +177,9 @@ def display_summary(validator):
               f"(from certificate):"
               f"\n{validator.get_identity_provider()}")
         print("---")
+        print(f"SIGNING CERTIFICATE EXPIRATION DATE (MM/DD/YYYY):"
+              f"\n{validator.get_certificate().get_expiration_date():%m/%d/%Y}")
+        print("---")
     print(f"ASSERTION CONSUMER SERVICE URL:"
           f"\n{validator.get_assertion_consumer_service_url() or '(this value is missing)'}")
     print("---")
