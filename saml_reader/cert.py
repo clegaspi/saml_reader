@@ -69,4 +69,10 @@ class Certificate(object):
         return self.get_subject().get("CN")
 
     def get_expiration_date(self):
+        """
+        Get expiration date for certificate
+
+        Returns:
+            datetime.date: the expiration date for the certificate
+        """
         return self._certificate.not_valid_after.date()
