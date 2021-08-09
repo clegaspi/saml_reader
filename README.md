@@ -6,10 +6,39 @@ Please **DO NOT** add any personally identifiable information (PII) when reporti
 This means **DO NOT** upload any SAML data, even if it is yours. I don't want to be responsible
 for it. :)
 
+## Table of Contents
+
+- [SAML Reader](#saml-reader)
+  - [**IMPORTANT**](#important)
+  - [Table of Contents](#table-of-contents)
+  - [What is this tool?](#what-is-this-tool)
+  - [Installation](#installation)
+    - [Dependencies for `xmlsec`](#dependencies-for-xmlsec)
+    - [Installing from PyPI](#installing-from-pypi)
+    - [Installing from GitHub source](#installing-from-github-source)
+  - [Updating the package](#updating-the-package)
+    - [From PyPI](#from-pypi)
+    - [From GitHub source](#from-github-source)
+  - [Running the CLI](#running-the-cli)
+    - [Data Sources](#data-sources)
+      - [**Reading from a file**](#reading-from-a-file)
+      - [**Reading from clipboard**](#reading-from-clipboard)
+      - [**Reading from pipe**](#reading-from-pipe)
+    - [Other command line options](#other-command-line-options)
+      - [`--summary`](#--summary)
+      - [`--summary-only`](#--summary-only)
+      - [`--compare`](#--compare)
+  - [Reporting issues](#reporting-issues)
+  - [Contributing](#contributing)
+
 ## What is this tool?
 This tool parses SAML responses, gathering relevant info for diagnosing issues with federated authentication for MongoDB Cloud.
 
-### Installation
+---
+
+## Installation
+
+### Dependencies for `xmlsec`
 
 One of the tools used in this package requires `xmlsec`, which requires some libraries be installed on your system. See [this page](https://pypi.org/project/xmlsec/) for details on the required packages. For Mac, they can be installed by running [Homebrew](https://brew.sh/):
 
@@ -17,7 +46,11 @@ One of the tools used in this package requires `xmlsec`, which requires some lib
 brew install libxml2 libxmlsec1 pkg-config
 ```
 
-To install the actual package once the dependencies have been installed:
+For Windows, installing the `xmlsec` package from PyPI already has these dependencies pre-built into the installation process for the package, so there should be no need to install them separately.
+
+### Installing from PyPI
+
+To install SAML Reader from PyPI:
 
 1. If you wish to run this package in an environment such as [virtualenv](https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/) or [Anaconda](https://docs.conda.io/projects/conda/en/latest/user-guide/getting-started.html), create the environment of your choice with Python 3.6+ and activate it. I always recommend installing in an environment, but if you wish to install the package globally, skip to step 2.
 2. Install the package from PyPI:
@@ -26,11 +59,22 @@ pip install saml_reader
 ```
 3. Run the command line interface by running `saml_reader` with options specified below.
 
-This tool requires a few external packages for parsing the data and running tests.
+### Installing from GitHub source
 
-### Updating the package
+If you wish to install from the GitHub source:
 
-As this software is in its infancy, updates will be made quickly as bugs are discovered and improvements are made. To get the latest version, run:
+1. Clone the repository locally with `git clone`.
+2. Ideally, create an environment such as [virtualenv](https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/) or [Anaconda](https://docs.conda.io/projects/conda/en/latest/user-guide/getting-started.html), create the environment of your choice with Python 3.6+ and activate it.
+3. In the root directory of the repository, run `pip install .` to install the package. If you are planning to make changes to the package, run `pip install -e .` instead to install the package in editable mode.
+4. Run the command line interface by running `saml_reader` with options specified below.
+
+## Updating the package
+
+As this software is in its infancy, updates will be made quickly as bugs are discovered and improvements are made.
+
+### From PyPI
+
+To get the latest version, run:
 
 ```
 pip install --upgrade saml_reader
@@ -38,15 +82,30 @@ pip install --upgrade saml_reader
 
 This should uninstall the old version and install the new.
 
-### Running the CLI
+### From GitHub source
+
+To pull down the latest version:
+
+1. Checkout `master` branch with `git checkout master`.
+2. Run `git pull` to pull down the latest changes.
+3. If you installed in editable mode, you should be good to go. If you did not install in editable mode, run `pip install .` in the root directory of the repository.
+
+---
+
+## Running the CLI
 
 This tool can accept a SAML response as properly-formatted XML or
 a base64-encoded string, or it can be extracted directly from a HAR file dump. 
 The data can be input from a file, from the system clipboard,
 or from a Unix pipe.
 
-## Data Sources
-#### Reading from a file with different types
+### Data Sources
+
+You can read from a number of different sources in a number of different formats.
+
+#### **Reading from a file**
+
+You with different types
 
 ```bash
 saml_reader /path/to/file.xml   # XML is default type
@@ -54,7 +113,7 @@ saml_reader /path/to/base64.txt --type base64   # base64 requires flag
 saml_reader /path/to/harfile.har --type har     # har requires flag
 ```
 
-#### Reading from clipboard
+#### **Reading from clipboard**
 
 If you have the xml, base64, or har data in your system clipboard, run:
 
@@ -64,7 +123,7 @@ saml_reader --clip --type <xml, base64, har>
 
 The `--type` flag is not required for an XML file.
 
-#### Reading from pipe
+#### **Reading from pipe**
 
 If you prefer piping or have been doing your own parsing on the command line:
 
@@ -76,23 +135,23 @@ cat file.har | saml_reader --type har
 
 You can specify `saml_reader --stdin` but it is not required. 
 
-## Other command line options
+### Other command line options
 
 By default, the application will only output the results of validation
 tests. There are some extra options to expand the tests and the information
 that is output by the program.
 
-### `--summary`
+#### `--summary`
 
 This flag will print a full summary of key parameters pulled directly from the SAML 
 response and certificate.
 
-### `--summary-only`
+#### `--summary-only`
 
 This will only print the summary and skip any validation tests. Cannot be specified
 with `--compare`
 
-### `--compare`
+#### `--compare`
 
 This will allow the user to input expected values to compare with the SAML response.
 SAML Reader will prompt for each value in the terminal. Values can
@@ -110,6 +169,7 @@ Domain(s) associated with IdP:
 3. mydomain.com
 4. 
 IdP Issuer URI: Issuer_URI_Here
+Signing Certificate Expiration Date (MM/DD/YYYY): 01/31/2021
 Encryption Algorithm (SHA1 or SHA256): SHA256
 Is customer expecting role mapping (y/N): y
 Expected role mapping group names (if unknown, leave blank):
@@ -128,6 +188,7 @@ comparison values in the format:
   "lastName": "Ell",
   "email": "sam.ell@mydomain.com",
   "issuer": "Issuer URI here",
+  "cert_expiration": "Date in MM/DD/YYYY format",
   "acs": "Assertion Consumer Service URL here",
   "audience": "Audience URL here",
   "encryption": "Must be 'SHA1' or 'SHA256'",
@@ -139,6 +200,8 @@ comparison values in the format:
 
 Note that `domains` and `memberOf` must be lists. Any value can be omitted or substituted with `null` to be ignored. 
 An empty string (`""`) or empty list (`[]`) will be interpreted as an invalid value.
+
+---
 
 ## Reporting issues
 

@@ -1,6 +1,6 @@
 """
-Command line interface for SAML Reader parser. These functions handle all
-user interaction/display.
+Command line interface for SAML Reader parser. These functions handle display.
+User inputs are handled elsewhere.
 """
 import sys
 import os
@@ -12,7 +12,8 @@ from contextlib import redirect_stdout
 import argparse
 
 from saml_reader.text_reader import TextReader
-from saml_reader.validation.mongo import MongoFederationConfig, MongoVerifier, MongoComparisonValue
+from saml_reader.validation.mongo import MongoSamlValidator
+from saml_reader.validation.input_validation import MongoFederationConfig, MongoComparisonValue
 from saml_reader.saml.parser import DataTypeInvalid
 from saml_reader.saml.errors import SamlError
 from saml_reader import __version__
@@ -37,8 +38,8 @@ def cli(cl_args):
                 to be read in. Must be one of: 'xml', 'base64', 'har'
             - `--compare <file, optional>`: optional argument. Compare SAML data vs. data entered
                 by user. If no file is specified, application will prompt for values. If file
-                specified, must be JSON file which matches the attribute keys in
-                `mongo.VALIDATION_REGEX_BY_ATTRIB`
+                specified, must be JSON file which contains only attribute keys found in
+                `UserInputValidation`
             - `--summary`: optional argument. Will output a summary of relevant
                 data read from SAML response.
             - `--summary-only`: optional argument. Only outputs summary info, does not perform
@@ -78,7 +79,8 @@ def cli(cl_args):
     parser.add_argument('--summary-only',
                         dest='summary_only', action='store_true', required=False,
                         help='do not run MongoDB-specific validation, only output summary')
-    parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
+    parser.add_argument('--version', action='version',
+                        version=f'%(prog)s {__version__}')
     # TODO: Add XML pretty print option
     parsed_args = parser.parse_args(cl_args)
 
@@ -146,24 +148,31 @@ def run_analysis(
     if compare:
         if compare_file:
             output_stream("Parsing comparison values...")
-            federation_config = parse_comparison_values_from_json(compare_file)
+            try:
+                federation_config = parse_comparison_values_from_json(compare_file)
+            except ValueError as e:
+                if len(e.args) > 1:
+                    # TODO: This could probably use a custom exception
+                    output_stream(f"Attribute '{e.args[1]}' in the provided JSON did not pass validation")
+                    return
+                raise e
             output_stream("Done")
         else:
             federation_config = prompt_for_comparison_values(output_stream=output_stream,
                                                              input_stream=input_stream)
 
     output_stream("------------")
-    verifier = MongoVerifier(saml_data.get_saml(),
+    validator = MongoSamlValidator(saml_data.get_saml(),
                              saml_data.get_certificate(),
                              comparison_values=federation_config)
 
     if print_analysis:
-        verifier.validate_configuration()
-        validation_report = compile_validation_report(verifier)
+        validator.validate_configuration()
+        validation_report = compile_validation_report(validator)
         output_stream(validation_report)
 
     if print_summary:
-        summary = compile_summary(verifier)
+        summary = compile_summary(validator)
         output_stream(summary)
 
 
@@ -185,13 +194,13 @@ def parse_saml_data(input_type='xml', source='clip', filepath=None, raw_data=Non
     return constructor_func(input_type)
 
 
-def compile_validation_report(verifier):
+def compile_validation_report(validator):
     """
     Display MongoDB Cloud-specific recommendations for identifiable issues
     with the SAML data.
 
     Args:
-        verifier (MongoVerifier): SAML and cert data
+        validator (MongoSamlValidator): SAML and cert data
 
     Returns:
         None
@@ -200,7 +209,7 @@ def compile_validation_report(verifier):
     out = OutputStream()
     output_stream = out.print
 
-    error_messages = verifier.get_error_messages()
+    error_messages = validator.get_error_messages()
     if not error_messages:
         output_stream("No errors found! :)")
         output_stream("------------")
@@ -212,12 +221,12 @@ def compile_validation_report(verifier):
     return out.getvalue()
 
 
-def compile_summary(verifier):
+def compile_summary(validator):
     """
     Display summary of parsed SAML data
 
     Args:
-        verifier (MongoVerifier): SAML and cert data
+        validator (MongoSamlValidator): SAML and cert data
 
     Returns:
         None
@@ -228,33 +237,36 @@ def compile_summary(verifier):
 
     output_stream("\n-----SAML SUMMARY-----")
 
-    if verifier.has_certificate():
+    if validator.has_certificate():
         output_stream(f"IDENTITY PROVIDER "
                       f"(from certificate):"
-                      f"\n{verifier.get_identity_provider()}")
+                      f"\n{validator.get_identity_provider()}")
+        output_stream("---")
+        output_stream(f"SIGNING CERTIFICATE EXPIRATION DATE (MM/DD/YYYY):"
+              f"\n{validator.get_certificate().get_expiration_date():%m/%d/%Y}")
         output_stream("---")
     output_stream(f"ASSERTION CONSUMER SERVICE URL:"
-                  f"\n{verifier.get_assertion_consumer_service_url() or '(this value is missing)'}")
+                  f"\n{validator.get_assertion_consumer_service_url() or '(this value is missing)'}")
     output_stream("---")
     output_stream(f"AUDIENCE URL:"
-                  f"\n{verifier.get_audience_url() or '(this value is missing)'}")
+                  f"\n{validator.get_audience_url() or '(this value is missing)'}")
     output_stream("---")
     output_stream(f"ISSUER URI:"
-                  f"\n{verifier.get_issuer() or '(this value is missing)'}")
+                  f"\n{validator.get_issuer() or '(this value is missing)'}")
     output_stream("---")
     output_stream(f"ENCRYPTION ALGORITHM:"
-                  f"\n{verifier.get_encryption_algorithm() or '(this value is missing)'}")
+                  f"\n{validator.get_encryption_algorithm() or '(this value is missing)'}")
     output_stream("---")
     output_stream(f"NAME ID:"
-                  f"\nValue: {verifier.get_name_id() or '(this value is missing)'}"
-                  f"\nFormat: {verifier.get_name_id_format() or '(this value is missing)'}")
+                  f"\nValue: {validator.get_name_id() or '(this value is missing)'}"
+                  f"\nFormat: {validator.get_name_id_format() or '(this value is missing)'}")
     output_stream("---")
     # Checking for the required attributes for MongoDB Cloud
     output_stream(f"ATTRIBUTES:")
-    if not verifier.get_claim_attributes():
+    if not validator.get_claim_attributes():
         output_stream("No claim attributes found")
     else:
-        for name, value in verifier.get_claim_attributes().items():
+        for name, value in validator.get_claim_attributes().items():
             output_stream(f"Name: {name}")
             if isinstance(value, list):
                 output_stream("Values:")
@@ -279,35 +291,45 @@ def prompt_for_comparison_values(output_stream=print, input_stream=input):
                   "values in the SAML response. Press Return to skip a value.")
 
     comparison_values = [
-        MongoComparisonValue('firstName', "Customer First Name:", multi_value=False),
-        MongoComparisonValue('lastName', "Customer Last Name:", multi_value=False),
-        MongoComparisonValue('email', "Customer Email Address:", multi_value=False),
-        MongoComparisonValue('acs', "MongoDB Assertion Consumer Service URL:", multi_value=False),
-        MongoComparisonValue('audience', "MongoDB Audience URL:", multi_value=False),
-        MongoComparisonValue('domains', "Domain(s) associated with IdP:", multi_value=True),
+        MongoComparisonValue(
+            'firstName', "Customer First Name:", multi_value=False),
+        MongoComparisonValue(
+            'lastName', "Customer Last Name:", multi_value=False),
+        MongoComparisonValue(
+            'email', "Customer Email Address:", multi_value=False),
+        MongoComparisonValue(
+            'acs', "MongoDB Assertion Consumer Service URL:", multi_value=False),
+        MongoComparisonValue(
+            'audience', "MongoDB Audience URL:", multi_value=False),
+        MongoComparisonValue(
+            'domains', "Domain(s) associated with IdP:", multi_value=True),
         MongoComparisonValue('issuer', "IdP Issuer URI:", multi_value=False),
-        MongoComparisonValue('encryption', "Encryption Algorithm (""SHA1"" or ""SHA256""):", multi_value=False),
+        MongoComparisonValue(
+            'cert_expiration', "Signing Certificate Expiration Date (MM/DD/YYYY):", multi_value=False),
+        MongoComparisonValue(
+            'encryption', "Encryption Algorithm (""SHA1"" or ""SHA256""):", multi_value=False),
         MongoComparisonValue('role_mapping_expected', "Is customer expecting role mapping (y/N):",
                              multi_value=False, default="N")
     ]
 
     for value in comparison_values:
-        federation_config.set_value(
-            value.get_name(),
-            value.prompt_for_user_input()
-        )
+        value.prompt_for_user_input()
+        if not value.is_null():
+            federation_config.set_value(value)
 
-    if federation_config.get_value('role_mapping_expected'):
-        member_of_values = MongoComparisonValue(
+    if federation_config.get_parsed_value('role_mapping_expected'):
+        member_of = MongoComparisonValue(
             'memberOf',
             "Expected role mapping group names (if unknown, leave blank):",
             multi_value=True
-        ).prompt_for_user_input(input_stream=input_stream, output_stream=output_stream)
-
-        federation_config.set_value(
-            'memberOf',
-            member_of_values
         )
+        member_of.prompt_for_user_input()
+
+        if not member_of.is_null():
+            federation_config.set_value(
+                member_of.get_name(),
+                member_of.get_value()
+            )
 
     output_stream("------------")
 
@@ -320,7 +342,7 @@ def parse_comparison_values_from_json(filename):
 
     Args:
         filename (basestring): path to JSON-formatted file with comparison values
-            See `saml_reader.mongo.VALIDATION_REGEX_BY_ATTRIB` for valid fields.
+            See `UserInputValidation` for valid fields.
 
     Returns:
         (MongoFederationConfig) object containing validated comparison values
