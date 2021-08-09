@@ -1,10 +1,9 @@
 """
-Command line interface for SAML Reader parser. These functions handle all
-user interaction/display.
+Command line interface for SAML Reader parser. These functions handle display.
+User inputs are handled elsewhere.
 """
 import sys
 import json
-
 import argparse
 
 from saml_reader.text_reader import TextReader
@@ -28,7 +27,7 @@ def cli(cl_args):
                 to be read in. Must be one of: 'xml', 'base64', 'har'
             - `--compare <file, optional>`: optional argument. Compare SAML data vs. data entered
                 by user. If no file is specified, application will prompt for values. If file
-                specified, must be JSON file which matches the attribute keys in
+                specified, must be JSON file which contains only attribute keys found in
                 `UserInputValidation`
             - `--summary`: optional argument. Will output a summary of relevant
                 data read from SAML response.
@@ -275,7 +274,7 @@ def parse_comparison_values_from_json(filename):
 
     Args:
         filename (basestring): path to JSON-formatted file with comparison values
-            See `saml_reader.mongo.VALIDATION_REGEX_BY_ATTRIB` for valid fields.
+            See `UserInputValidation` for valid fields.
 
     Returns:
         (MongoFederationConfig) object containing validated comparison values
