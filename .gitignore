@@ -1,0 +1,3 @@
+saml_reader/**/__pycache__/*
+saml_reader.egg-info/*
+.vscode

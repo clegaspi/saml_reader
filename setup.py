@@ -15,7 +15,7 @@ setup(
       install_requires=[
             'pyperclip',
             'haralyzer',
-            'python3-saml',
+            'python3-saml==1.10.1',
             'cryptography',
             'networkx',
             'lxml',     # This should be installed as part of python3-saml
