@@ -1,13 +1,30 @@
+"""
+This module handles capturing user input for comparison values, validating that input,
+and coercing it into the format expected by the tests.
+"""
 import re
 from datetime import datetime
 
 
 class _NullUserInput:
+    """
+    Class that represents an empty user input.
+    """
     pass
 
 
 class UserInputValidator:
+    """
+    Validates user input or SAML data against a regular expression and/or an arbitrary function.
+    """
     def __init__(self):
+        """
+        Create an instance of the comparison engine. Loads comparison regular expressions
+        and functions.
+
+        Returns:
+            None
+        """
         # Regular expressions to validate SAML fields and claim attributes
         self._regex_by_attribute = {
             'firstName': r'^\s*\S+.*$',
@@ -22,14 +39,37 @@ class UserInputValidator:
             'role_mapping_expected': '^(?i)[YN]$'
         }
 
+        # Arbitrary functions used to validate SAML field and claim attributes for those
+        # that require more than a simple string pattern matching.
         self._func_by_attribute = {
             'cert_expiration': self._validate_cert_expiration
         }
 
-    def __contains__(self, value):
-        return value in self._regex_by_attribute or value in self._func_by_attribute
+    def __contains__(self, name):
+        """
+        Determines if an attribute name can be validated by this class.
+
+        Args:
+            name (basestring): attribute name
+
+        Returns:
+            (bool) True if the attribute name can be validated, False otherwise
+        """
+        return name in self._regex_by_attribute or name in self._func_by_attribute
 
     def validate(self, attribute_name, value):
+        """
+        Determine if a value passes validation tests defined for a given attribute.
+
+        Args:
+            attribute_name (basestring): name of the attribute. Determines which test(s)
+                are run to validate the `value`.
+            value (`basestring` or `Any`): value to be validated. Usually this is a string,
+                but it can be any type when depending on a function for validation.
+
+        Returns:
+            (bool) True if the value passes validation, False otherwise
+        """
         if value == _NullUserInput:
             return True
         
@@ -44,11 +84,35 @@ class UserInputValidator:
         return regex_valid and func_valid
 
     def get_validation_regex(self, attribute_name):
+        """
+        Gets regular expression string for a given attribute, if it exists.
+
+        Args:
+            attribute_name (basestring): the name of the attribute whose regex
+                string is to be retrieved
+
+        Raises:
+            ValueError: if there is no defined regular expression string for the
+                provided attribute name
+
+        Returns:
+            basestring: regular expression string for validating the attribute
+        """
         if attribute_name in self._regex_by_attribute:
             return self._regex_by_attribute[attribute_name]
         raise ValueError(f"Regex for attribute name '{attribute_name}' not found")
 
     def _validate_cert_expiration(self, value):
+        """
+        Validates that the value specified is a valid date in the MM/DD/YYYY format and
+        that it it is in the future.
+
+        Args:
+            value (basestring): date string
+
+        Returns:
+            bool: True if the string is a valid date in the future
+        """
         try:
             # Make sure it's a correctly-formatted date
             date = datetime.strptime(value, '%m/%d/%Y')
@@ -62,9 +126,16 @@ class UserInputValidator:
 
 
 class UserInputParser:
-    def __init__(self) -> None:
+    """
+    Parses user input after validation to coerce it into the correct format for testing.
+    """
+    def __init__(self):
+        """
+        Instantiates instance of the parser.
+        """
         self._validator = UserInputValidator()
 
+        # Custom parsing functions by attribute
         self._parsing_func_by_attribute = {
             'domains': lambda x: [v.strip().lower() for v in x],
             'encryption': lambda x: "SHA" + re.findall(
@@ -77,6 +148,17 @@ class UserInputParser:
         }
 
     def parse(self, attribute_name, value):
+        """
+        Parses the value using the function stored for the specified attribute name.
+        If no function is defined, or the value is of type `_NullUserInput`, the value is returned as is.
+
+        Args:
+            attribute_name (basestring): name of attribute
+            value (`basestring` or `Any`): attribute value to parse
+
+        Returns:
+            Any: parsed value
+        """
         if value == _NullUserInput or attribute_name not in self._parsing_func_by_attribute:
             return value
         return self._parsing_func_by_attribute[attribute_name](value)
@@ -137,11 +219,29 @@ class MongoComparisonValue:
         return self._name
 
     def get_value(self):
+        """
+        Get value after it has been gathered from input or set manually.
+
+        Raises:
+            ValueError: raised if value has not been set
+
+        Returns:
+            `basestring` or `Any`: value of the input
+        """
         if self._value is _NullUserInput:
             raise ValueError("This value has not been gathered yet!")
         return self._value
 
     def set_value(self, value):
+        """
+        Sets value programmatically without prompting user for input.
+
+        Args:
+            value (`basestring` or `Any`): the value to be stored
+
+        Raises:
+            ValueError: raised if the value does not pass validation with `UserInputValidator`
+        """
         if isinstance(value, list):
             value_list = value
         else:
@@ -152,6 +252,14 @@ class MongoComparisonValue:
             raise ValueError("Input did not pass validation")
 
     def is_null(self):
+        """
+        Determine if the value is null, either by user input or not being set yet.
+        Will return False if the value is set as the default and the default value is not
+        `_NullUserInput`.
+
+        Returns:
+            bool: True if null, False otherwise
+        """
         return self._value is _NullUserInput
 
     def _get_single_value(self):
@@ -233,11 +341,19 @@ class MongoFederationConfig:
                 - `lastName`: expected value for "lastName" claim attribute
                 - `email`: expected value for Name ID and "email" claim attribute
                 - `domains`: domain names associated with the identity provider, as a
-                    string. Multiple domains separated by whitespace.
+                    list of strings.
+                - `role_mapping_expected`: whether role mapping is configured, determines if
+                    `memberOf` should be a required attribute
+                - `memberOf`: expected AD group names to be mapped for role mapping as a list of
+                    strings.
+                - `cert_expiration`: expected expiration date for the SAML signing certificate
+                    as a date string formatted "MM/DD/YYYY"
         """
         self._settings = dict()
         self._parser = UserInputParser()
         if kwargs:
+            # TODO: Possibly separate this out as its own function or class?
+            #       i.e. a `from_dict()` or `from_json()` function
             for name, value in kwargs.items():
                 value_obj = MongoComparisonValue(name, "")
                 try:
@@ -260,6 +376,15 @@ class MongoFederationConfig:
         return self._settings.get(value_name, default)
 
     def set_values(self, value_list):
+        """
+        Set multiple values in the configuration.
+
+        Args:
+            value_list (`list` of `MongoComparisonValue`): values to be added to configuration
+
+        Raises:
+            TypeError: raised if not all members of `value_list` are not of type `MongoComparisonValue`
+        """
         if not all(isinstance(v, MongoComparisonValue) for v in value_list):
             raise TypeError("All values must be of type MongoComparisonValue")
 
@@ -269,6 +394,15 @@ class MongoFederationConfig:
             self._settings[name] = self._parser.parse(name, value)
 
     def set_value(self, value):
+        """
+        Set a value in the configuration.
+
+        Args:
+            value (MongoComparisonValue): the value to set
+
+        Raises:
+            TypeError: raised if `value` is not of type `MongoComparisonValue`
+        """
         if not isinstance(value, MongoComparisonValue):
             raise TypeError("Value must be of type MongoComparisonValue")
         self.set_values([value])
