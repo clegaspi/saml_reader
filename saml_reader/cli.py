@@ -263,10 +263,7 @@ def prompt_for_comparison_values():
         member_of.prompt_for_user_input()
 
         if not member_of.is_null():
-            federation_config.set_value(
-                member_of.get_name(),
-                member_of.get_value()
-            )
+            federation_config.set_value(member_of)
 
     print("------------")
 
