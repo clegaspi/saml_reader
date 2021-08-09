@@ -117,10 +117,14 @@ def cli(cl_args):
             federation_config = prompt_for_comparison_values()
         else:
             print("Parsing comparison values...")
-            federation_config = parse_comparison_values_from_json(
-                parsed_args.compare[0])
-            if not federation_config:
-                return
+            try:
+                federation_config = parse_comparison_values_from_json(
+                    parsed_args.compare[0])
+            except ValueError as e:
+                if len(e.args) > 1:
+                    print(f"Attribute '{e.args[1]}' in the provided JSON did not pass validation")
+                    return
+                raise e
             print("Done")
 
     print("------------")
@@ -281,11 +285,7 @@ def parse_comparison_values_from_json(filename):
     """
     with open(filename, 'r') as f:
         comparison_values = json.load(f)
-    try:
-        federation_config = MongoFederationConfig(**comparison_values)
-    except ValueError as e:
-        print(f"Attribute '{e.args[1]}' in the provided JSON did not pass validation")
-        return None
+    federation_config = MongoFederationConfig(**comparison_values)
     return federation_config
 
 
