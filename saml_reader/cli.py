@@ -122,6 +122,7 @@ def cli(cl_args):
                     parsed_args.compare[0])
             except ValueError as e:
                 if len(e.args) > 1:
+                    # TODO: This could probably use a custom exception
                     print(f"Attribute '{e.args[1]}' in the provided JSON did not pass validation")
                     return
                 raise e
