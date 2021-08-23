@@ -43,8 +43,6 @@ def display_page(pathname, parameters):
 
     if pathname == '/analyze':
         return analyze.layout
-    if pathname == '/dark':
-        return dark.layout
 
     return home.layout
 
