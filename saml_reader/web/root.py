@@ -1,16 +1,13 @@
 import sys
 
-import dash
 import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output
 
-from web.home import home_layout
-from web.analyze import analyze_layout
+from saml_reader.web.app import app
+from saml_reader.web.pages import home, analyze
 
-app = dash.Dash(__name__)
-server = app.server
-app.scripts.config.serve_locally = True
+# app.scripts.config.serve_locally = True
 app.title = "SAML Reader"
 route = dcc.Location(id='url', refresh=False)
 
@@ -30,15 +27,13 @@ app.layout = html.Div(
 # Initialize page layouts to register callbacks
 
 # Uncomment this if you define callbacks for objects that don't exist yet
-# app.config.suppress_callback_exceptions = True
-HOME_LAYOUT = home_layout(app)
-ANALYZE_LAYOUT = analyze_layout(app)
+app.config.suppress_callback_exceptions = True
 
 
 @app.callback(Output('page-content', 'children'),
               [Input('url', 'pathname'),
                Input('url', 'search')])
-def display_page(pathname, search):
+def display_page(pathname, parameters):
     """
     Args:
       pathname:
@@ -47,15 +42,22 @@ def display_page(pathname, search):
     """
 
     if pathname == '/analyze':
-        return ANALYZE_LAYOUT
+        return analyze.layout
+    if pathname == '/dark':
+        return dark.layout
 
-    return HOME_LAYOUT
+    return home.layout
 
 
 if __name__ == '__main__':
     host = "0.0.0.0"
+    use_flask_debug_mode = True
     if len(sys.argv) > 1:
-        if sys.argv[1] == '--local':
+        if '--local' in sys.argv:
             host = "localhost"
+        if '--using-debugger' in sys.argv:
+            use_flask_debug_mode = False
 
-    app.run_server(host=host, debug=False, dev_tools_ui=True)
+    app.run_server(host=host,
+        debug=use_flask_debug_mode, dev_tools_ui=use_flask_debug_mode
+    )
