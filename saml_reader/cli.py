@@ -117,7 +117,7 @@ def cli(cl_args):
 
 def run_analysis(
         input_type='xml', source='clip', filepath=None, raw_data=None,
-        compare=False, compare_file=None,
+        compare=False, compare_file=None, compare_object=None,
         print_analysis=True, print_summary=True, output_stream=print, input_stream=input):
 
     output_stream(f"SAML READER")
@@ -157,6 +157,8 @@ def run_analysis(
                     return
                 raise e
             output_stream("Done")
+        elif compare_object:
+            federation_config = compare_object
         else:
             federation_config = prompt_for_comparison_values(output_stream=output_stream,
                                                              input_stream=input_stream)

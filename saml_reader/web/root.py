@@ -37,7 +37,7 @@ def display_page(pathname, parameters):
     """
     Args:
       pathname:
-      search:
+      parameters:
     Returns:
     """
 

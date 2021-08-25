@@ -8,6 +8,8 @@ def build_layout():
         dcc.Markdown("""
         Hi! Welcome to the SAML Reader web app. Please select one of the available tools
         from the list above.
+
+        At present, it's just the analyzer, but more to come in the future!
         """)
     ])
     return layout
