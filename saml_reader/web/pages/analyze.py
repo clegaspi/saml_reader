@@ -1,14 +1,13 @@
 from datetime import datetime
 
-from saml_reader import cert
-from saml_reader.validation.input_validation import MongoFederationConfig
 import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 
-from saml_reader.web.app import app
+from saml_reader.validation.input_validation import MongoFederationConfig
 from saml_reader.cli import run_analysis, OutputStream
+from saml_reader.web.app import app
 
 
 def build_layout():
