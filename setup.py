@@ -21,6 +21,7 @@ setup(
             'lxml',     # This should be installed as part of python3-saml
             'defusedxml==0.6.0',      # This should be installed as part of python3-saml
             'dash',      # For web interface
-            'Flask==1.1.2'
+            'Flask==1.1.2',
+            'dash-extensions'
       ]
 )
