@@ -5,7 +5,7 @@ from threading import Timer
 from functools import partial
 
 from saml_reader import __version__
-from saml_reader.web.index import run_web_app
+from saml_reader.web.run import run_web_app
 
 
 def web_cli(cl_args):

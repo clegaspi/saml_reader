@@ -1,7 +1,6 @@
 import dash_core_components as dcc
 import dash_html_components as html
 
-from saml_reader.web.app import app
 
 def build_layout():
     layout = html.Div([
