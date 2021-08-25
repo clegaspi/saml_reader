@@ -1,3 +1,4 @@
+import argparse
 import sys
 
 import dash_core_components as dcc
@@ -47,6 +48,9 @@ def display_page(pathname, parameters):
     return home.layout
 
 
+def run_web_app(host="localhost", port=8050, **options):
+    app.run_server(host=host, port=port, **options)
+
 if __name__ == '__main__':
     host = "0.0.0.0"
     use_flask_debug_mode = True
@@ -56,6 +60,5 @@ if __name__ == '__main__':
         if '--using-debugger' in sys.argv:
             use_flask_debug_mode = False
 
-    app.run_server(host=host,
-        debug=use_flask_debug_mode, dev_tools_ui=use_flask_debug_mode
-    )
+    options = {"debug": use_flask_debug_mode, "dev_tools_ui": use_flask_debug_mode}
+    run_web_app(host, **options)
