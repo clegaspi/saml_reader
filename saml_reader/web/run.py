@@ -1,6 +1,6 @@
 import sys
 
-from saml_reader.web.app import app
+from saml_reader.web.app import app, server
 import saml_reader.web.layouts
 import saml_reader.web.callbacks
 
