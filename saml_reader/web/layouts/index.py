@@ -1,8 +1,17 @@
+"""Template for the web app. Subpages are loaded into the `page-content` Div.
+"""
+
 import dash_core_components as dcc
 import dash_html_components as html
 
 
 def build_layout():
+    """
+    Builds layout for page.
+
+    Returns:
+        an HTML component such as html.Div
+    """
     route = dcc.Location(id='url', refresh=False)
 
     layout_menu = html.Div(
@@ -20,4 +29,5 @@ def build_layout():
 
     return page_template_layout
 
+"""Page layout"""
 layout = build_layout()

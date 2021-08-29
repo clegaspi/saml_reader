@@ -1,21 +1,26 @@
-
+"""Callbacks for page header
+"""
 from dash.dependencies import Input, Output
 
 from saml_reader.web.app import app
-from saml_reader.web.layouts import home, analyze
+import saml_reader.web.layouts as pages
 
 @app.callback(Output('page-content', 'children'),
               [Input('url', 'pathname'),
                Input('url', 'search')])
 def display_page(pathname, parameters):
     """
+    Handles changing page contents when navigating to a new page.
+
     Args:
-      pathname:
-      parameters:
+        pathname: the path portion of the URL where "/" is root
+        parameters: query parameters passed to the URL
+    
     Returns:
+        html object
     """
 
     if pathname == '/analyze':
-        return analyze.layout
+        return pages.analyze.layout
 
-    return home.layout
+    return pages.home.layout

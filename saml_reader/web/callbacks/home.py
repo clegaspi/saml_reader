@@ -1,3 +1,5 @@
+"""Callbacks for the home page layout
+"""
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 

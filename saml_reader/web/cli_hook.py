@@ -43,7 +43,7 @@ def web_cli(cl_args):
     parsed_args = parser.parse_args(cl_args)
 
     # TODO: This is kind of crude, but it works. Any "better" way of opening the browser after
-    #       the web app has started
+    #       the web app has started could replace this.
 
     web_address = f"http://{parsed_args.host}:{parsed_args.port}/"
 
@@ -57,4 +57,6 @@ def web_cli(cl_args):
     
 
 def start_web_app_from_cli():
+    """Hook for starting web app from CLI.
+    """
     web_cli(sys.argv[1:])

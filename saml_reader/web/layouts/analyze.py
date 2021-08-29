@@ -1,8 +1,17 @@
+"""Layout for SAML analysis page
+"""
+
 import dash_core_components as dcc
 import dash_html_components as html
 
 
 def build_layout():
+    """
+    Builds layout for page.
+
+    Returns:
+        an HTML component such as html.Div
+    """
     data_info_layout = html.Div([
         html.Label(
             children="Select Data Type:",
@@ -323,5 +332,5 @@ def build_layout():
     ], className="row", style={"margin-bottom": "3em"})
     return layout
 
-
+"""Page layout"""
 layout = build_layout()
