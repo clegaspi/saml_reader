@@ -113,6 +113,8 @@ take:
 
 When you navigate to the web app, the `Analyze SAML` link is the only one that currently has any functionality. You enter the SAML data on the left side and specify any comparison values you wish to include on the right side. Once you do that, click `Analyze` and the output will appear.
 
+When you are done using the web app, please be sure to close the web server by pressing Ctrl+C in the terminal where you ran the web app.
+
 ---
 
 ## Running the CLI
