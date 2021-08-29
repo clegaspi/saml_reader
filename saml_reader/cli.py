@@ -7,7 +7,6 @@ import os
 import json
 from functools import partial
 from io import StringIO
-from contextlib import redirect_stdout
 
 import argparse
 
@@ -15,7 +14,7 @@ from saml_reader.text_reader import TextReader
 from saml_reader.validation.mongo import MongoSamlValidator
 from saml_reader.validation.input_validation import MongoFederationConfig, MongoComparisonValue
 from saml_reader.saml.parser import DataTypeInvalid
-from saml_reader.saml.errors import SamlError
+# from saml_reader.saml.errors import SamlError
 from saml_reader import __version__
 
 
