@@ -19,6 +19,7 @@ for it. :)
   - [Updating the package](#updating-the-package)
     - [From PyPI](#from-pypi)
     - [From GitHub source](#from-github-source)
+  - [Runnig the web app](#runnig-the-web-app)
   - [Running the CLI](#running-the-cli)
     - [Data Sources](#data-sources)
       - [**Reading from a file**](#reading-from-a-file)
@@ -89,6 +90,28 @@ To pull down the latest version:
 1. Checkout `master` branch with `git checkout master`.
 2. Run `git pull` to pull down the latest changes.
 3. If you installed in editable mode, you should be good to go. If you did not install in editable mode, run `pip install .` in the root directory of the repository.
+
+---
+
+## Runnig the web app
+
+This tool can be run locally as a web app. You simply need to run:
+
+```
+saml_web_app
+```
+
+This will run the web app, serving it on `localhost` and port `8050`. Your default browser will
+open automatically to http://localhost:8050. There are a couple of arguments that the web app will
+take:
+
+- `--host <host>`: this lets you specify host/IP address where the web app is listening. Default is `localhost`
+- `--port <port>`: this lets you specify port where the web app is listening. Default is `8050`
+- `--no-open-browser`: suppresses opening the web browser automatically
+- `--version`: returns the installed version and exits
+- `--help`: displays the help menu
+
+When you navigate to the web app, the `Analyze SAML` link is the only one that currently has any functionality. You enter the SAML data on the left side and specify any comparison values you wish to include on the right side. Once you do that, click `Analyze` and the output will appear.
 
 ---
 
