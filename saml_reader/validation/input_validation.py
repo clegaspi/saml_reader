@@ -203,7 +203,7 @@ class MongoComparisonValue:
             (`basestring`, `list`, or `object`) The user input as a string or list, depending if multi-valued
                 or the default value if no user input provided
         """
-        if self._multi_value:
+        if self._is_multivalued:
             user_input = self._get_multi_value(input_stream=input_stream,
                                                output_stream=output_stream)
         else:
