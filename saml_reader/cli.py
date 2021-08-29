@@ -3,14 +3,31 @@ Command line interface for SAML Reader parser. These functions handle display.
 User inputs are handled elsewhere.
 """
 import sys
+import os
 import json
+from functools import partial
+from io import StringIO
+
 import argparse
 
 from saml_reader.text_reader import TextReader
 from saml_reader.validation.mongo import MongoSamlValidator
 from saml_reader.validation.input_validation import MongoFederationConfig, MongoComparisonValue
 from saml_reader.saml.parser import DataTypeInvalid
+# from saml_reader.saml.errors import SamlError
 from saml_reader import __version__
+
+
+class OutputStream(StringIO):
+    """Emulates printing to stdout, but instead capturing data as a `StringIO`-like object.
+    """
+    def print(self, data):
+        """Emulates the `print()` function for stdout.
+
+        Args:
+            data (Any): any object that implements `__str__()`
+        """
+        self.write(data + '\n')
 
 
 def cli(cl_args):
@@ -78,70 +95,160 @@ def cli(cl_args):
         return
 
     source = 'stdin'
-    filename = None
+    filepath = None
     if parsed_args.filepath is None:
         if parsed_args.clip:
             source = 'clip'
     else:
         source = 'file'
-        filename = parsed_args.filepath
+        filepath = parsed_args.filepath
 
-    print(f"SAML READER")
-    print(f"----------------------")
-    print(f"Parsing SAML data...")
+    compare = False
+    compare_file = None
+    if parsed_args.compare is not None:
+        compare = True
+        if len(parsed_args.compare) > 0:
+            compare_file = parsed_args.compare[0]
 
-    # Parse saml data before prompting for input values to not risk clipboard being erased
+    run_analysis(
+        input_type=parsed_args.input_type,
+        source=source,
+        filepath=filepath,
+        compare=compare,
+        compare_file=compare_file,
+        print_analysis=not parsed_args.summary_only,
+        print_summary=parsed_args.summary or parsed_args.summary_only
+    )
+
+
+def run_analysis(
+        input_type='xml', source='clip', filepath=None, raw_data=None,
+        compare=False, compare_file=None, compare_object=None,
+        print_analysis=True, print_summary=True, output_stream=print, input_stream=input):
+    """Interface to run SAML Reader analysis backend.
+
+    Args:
+        input_type (basestring, optional): Data type to be analyzed. Options are:
+            - `"xml"`: SAML dat as a decoded XML file. This is the default.
+            - `"base64"`: SAML data encoded as base64. This should be non-percent-encoded.
+            - `"har"`: SAML data contained in a har dump file. This should contain only one SAML response.
+        source (basestring, optional): Where to read the data from. Options are:
+            - `"clip"`: From the system clipboard. This is the default.
+            - `"stdin"`: From the stdin.
+            - `"file"`: From a file. Requires `filepath` be a valid path to a file.
+            - `"raw"`: From raw data sent to the function. Requires `raw_data` be valid SAML data.
+        filepath (basestring, optional): Path to the file to be read in. Requires `source='file'`.
+        raw_data (basestring, optional): Raw data to be parsed. Requires `source='raw'`.
+        compare (bool, optional): Whether to perform input comparison to SAML data. Defaults to False.
+        compare_file (basestring, optional): An input JSON file with comparison values. Requires `compare=True`.
+            Takes precendence over `compare_object`.
+        compare_object (MongoFederationConfig, optional): Comparison values as MongoFederationConfig object.
+        print_analysis (bool, optional): Prints the analysis to `output_stream`. Defaults to True.
+        print_summary (bool, optional): Prints the SAML data summary to `output_stream`. Defaults to True.
+        output_stream (function, optional): A function which takes one argument to ingest data output by this analysis.
+            Defaults to native `print` function.
+        input_stream (function, optional): A function which takes one argument (a prompt) and returns one argument
+            (a basestring) containing a user's answer to the prompt. Defaults to native `input` function.
+    """
+
+    output_stream(f"SAML READER")
+    output_stream(f"----------------------")
+    output_stream(f"Parsing SAML data...")
+
     try:
-        saml_parser = TextReader(
-            source, parsed_args.input_type, filename=filename)
+        saml_data = parse_saml_data(input_type=input_type, source=source,
+                                    filepath=filepath, raw_data=raw_data)
     except DataTypeInvalid:
-        if parsed_args.input_type == 'har':
-            print("We could not find the correct data in the HAR data specified.\n"
-                  "Check to make sure that the input data is of the correct type.")
+        if input_type == 'har':
+            output_stream("We could not find the correct data in the HAR data specified.\n"
+                          "Check to make sure that the input data is of the correct type.")
         else:
-            print(f"The input data does not appear to be the specified input type '{parsed_args.input_type}'.\n"
-                  f"Check to make sure that the input data is of the correct type.")
+            output_stream(f"The input data does not appear to be the specified input type '{input_type}'.\n"
+                          f"Check to make sure that the input data is of the correct type.")
         return
 
-    for msg in saml_parser.get_errors():
-        print(msg)
+    for msg in saml_data.get_errors():
+        output_stream(msg)
 
-    if not saml_parser.saml_is_valid():
+    if not saml_data.saml_is_valid():
         return
 
-    print(f"Done")
+    output_stream(f"Done")
 
     federation_config = None
-    if parsed_args.compare is not None:
-        if len(parsed_args.compare) == 0:
-            federation_config = prompt_for_comparison_values()
-        else:
-            print("Parsing comparison values...")
+    if compare:
+        if compare_file:
+            output_stream("Parsing comparison values...")
             try:
-                federation_config = parse_comparison_values_from_json(
-                    parsed_args.compare[0])
+                federation_config = parse_comparison_values_from_json(compare_file)
             except ValueError as e:
                 if len(e.args) > 1:
                     # TODO: This could probably use a custom exception
-                    print(f"Attribute '{e.args[1]}' in the provided JSON did not pass validation")
+                    output_stream(f"Attribute '{e.args[1]}' in the provided JSON did not pass validation")
                     return
                 raise e
-            print("Done")
+            output_stream("Done")
+        elif compare_object:
+            federation_config = compare_object
+        else:
+            federation_config = prompt_for_comparison_values(output_stream=output_stream,
+                                                             input_stream=input_stream)
 
-    print("------------")
-    validator = MongoSamlValidator(saml_parser.get_saml(),
-                                   saml_parser.get_certificate(),
-                                   comparison_values=federation_config)
+    output_stream("------------")
+    validator = MongoSamlValidator(saml_data.get_saml(),
+                             saml_data.get_certificate(),
+                             comparison_values=federation_config)
 
-    if not parsed_args.summary_only:
+    if print_analysis:
         validator.validate_configuration()
-        display_validation_results(validator)
+        validation_report = compile_validation_report(validator)
+        output_stream(validation_report)
 
-    if parsed_args.summary or parsed_args.summary_only:
-        display_summary(validator)
+    if print_summary:
+        summary = compile_summary(validator)
+        output_stream(summary)
 
 
-def display_validation_results(validator):
+def parse_saml_data(input_type='xml', source='clip', filepath=None, raw_data=None):
+    """Reading in and parsing SAML data.
+
+    Args:
+        input_type (basestring, optional): Data type to be analyzed. Options are:
+            - `"xml"`: SAML dat as a decoded XML file. This is the default.
+            - `"base64"`: SAML data encoded as base64. This should be non-percent-encoded.
+            - `"har"`: SAML data contained in a har dump file. This should contain only one SAML response.
+        source (basestring, optional): Where to read the data from. Options are:
+            - `"clip"`: From the system clipboard. This is the default.
+            - `"stdin"`: From the stdin.
+            - `"file"`: From a file. Requires `filepath` be a valid path to a file.
+            - `"raw"`: From raw data sent to the function. Requires `raw_data` be valid SAML data.
+        filepath (basestring, optional): Path to the file to be read in. Requires `source='file'`.
+        raw_data (basestring, optional): Raw data to be parsed. Requires `source='raw'`.
+
+    Raises:
+        ValueError: If an invalid combination of options is specified.
+
+    Returns:
+        BaseSamlParser: parsed SAML data object
+    """
+    # Parse saml data before prompting for input values to not risk clipboard being erased
+    constructor_func = None
+    if source == 'stdin':
+        constructor_func = TextReader.from_stdin
+    elif source == 'clip':
+        constructor_func = TextReader.from_clipboard
+    elif source == 'file':
+        if filepath and os.path.exists(filepath):
+            constructor_func = partial(TextReader.from_file, filename=filepath)
+    elif source == 'raw' and raw_data:
+        constructor_func = partial(TextReader, raw_data=raw_data)
+    else:
+        raise ValueError(f"Invalid input type specified: {source}")
+
+    return constructor_func(input_type)
+
+
+def compile_validation_report(validator):
     """
     Display MongoDB Cloud-specific recommendations for identifiable issues
     with the SAML data.
@@ -152,18 +259,23 @@ def display_validation_results(validator):
     Returns:
         None
     """
+
+    out = OutputStream()
+    output_stream = out.print
+
     error_messages = validator.get_error_messages()
     if not error_messages:
-        print("No errors found! :)")
-        print("------------")
-        return
+        output_stream("No errors found! :)")
+        output_stream("------------")
+    else:
+        output_stream("-----MONGODB CLOUD VERIFICATION-----")
+        for msg in error_messages:
+            output_stream(f"\n{msg}\n------")
 
-    print("-----MONGODB CLOUD VERIFICATION-----")
-    for msg in error_messages:
-        print(f"\n{msg}\n------")
+    return out.getvalue()
 
 
-def display_summary(validator):
+def compile_summary(validator):
     """
     Display summary of parsed SAML data
 
@@ -174,58 +286,68 @@ def display_summary(validator):
         None
     """
 
-    print("\n-----SAML SUMMARY-----")
+    out = OutputStream()
+    output_stream = out.print
+
+    output_stream("\n-----SAML SUMMARY-----")
 
     if validator.has_certificate():
-        print(f"IDENTITY PROVIDER "
-              f"(from certificate):"
-              f"\n{validator.get_identity_provider()}")
-        print("---")
-        print(f"SIGNING CERTIFICATE EXPIRATION DATE (MM/DD/YYYY):"
+        output_stream(f"IDENTITY PROVIDER "
+                      f"(from certificate):"
+                      f"\n{validator.get_identity_provider()}")
+        output_stream("---")
+        output_stream(f"SIGNING CERTIFICATE EXPIRATION DATE (MM/DD/YYYY):"
               f"\n{validator.get_certificate().get_expiration_date():%m/%d/%Y}")
-        print("---")
-    print(f"ASSERTION CONSUMER SERVICE URL:"
-          f"\n{validator.get_assertion_consumer_service_url() or '(this value is missing)'}")
-    print("---")
-    print(f"AUDIENCE URL:"
-          f"\n{validator.get_audience_url() or '(this value is missing)'}")
-    print("---")
-    print(f"ISSUER URI:"
-          f"\n{validator.get_issuer() or '(this value is missing)'}")
-    print("---")
-    print(f"ENCRYPTION ALGORITHM:"
-          f"\n{validator.get_encryption_algorithm() or '(this value is missing)'}")
-    print("---")
-    print(f"NAME ID:"
-          f"\nValue: {validator.get_name_id() or '(this value is missing)'}"
-          f"\nFormat: {validator.get_name_id_format() or '(this value is missing)'}")
-    print("---")
+        output_stream("---")
+    output_stream(f"ASSERTION CONSUMER SERVICE URL:"
+                  f"\n{validator.get_assertion_consumer_service_url() or '(this value is missing)'}")
+    output_stream("---")
+    output_stream(f"AUDIENCE URL:"
+                  f"\n{validator.get_audience_url() or '(this value is missing)'}")
+    output_stream("---")
+    output_stream(f"ISSUER URI:"
+                  f"\n{validator.get_issuer() or '(this value is missing)'}")
+    output_stream("---")
+    output_stream(f"ENCRYPTION ALGORITHM:"
+                  f"\n{validator.get_encryption_algorithm() or '(this value is missing)'}")
+    output_stream("---")
+    output_stream(f"NAME ID:"
+                  f"\nValue: {validator.get_name_id() or '(this value is missing)'}"
+                  f"\nFormat: {validator.get_name_id_format() or '(this value is missing)'}")
+    output_stream("---")
     # Checking for the required attributes for MongoDB Cloud
-    print(f"ATTRIBUTES:")
+    output_stream(f"ATTRIBUTES:")
     if not validator.get_claim_attributes():
-        print("No claim attributes found")
+        output_stream("No claim attributes found")
     else:
         for name, value in validator.get_claim_attributes().items():
-            print(f"Name: {name}")
+            output_stream(f"Name: {name}")
             if isinstance(value, list):
-                print("Values:")
+                output_stream("Values:")
                 for v in value:
-                    print(f"- {v}")
+                    output_stream(f"- {v}")
             else:
-                print(f"Value: {value}")
-            print("--")
+                output_stream(f"Value: {value}")
+            output_stream("--")
+
+    return out.getvalue()
 
 
-def prompt_for_comparison_values():
+def prompt_for_comparison_values(output_stream=print, input_stream=input):
     """
     Prompt user to enter values for comparing with the SAML response data
 
+    Args:
+        output_stream (function, optional): A function which takes one argument to ingest data output by this analysis.
+            Defaults to native `print` function.
+        input_stream (function, optional): A function which takes one argument (a prompt) and returns one argument
+            (a basestring) containing a user's answer to the prompt. Defaults to native `input` function.
     Returns:
         (MongoFederationConfig) object containing validated comparison values
     """
     federation_config = MongoFederationConfig()
-    print("Please enter the following values for comparison with\n"
-          "values in the SAML response. Press Return to skip a value.")
+    output_stream("Please enter the following values for comparison with\n"
+                  "values in the SAML response. Press Return to skip a value.")
 
     comparison_values = [
         MongoComparisonValue(
@@ -250,7 +372,7 @@ def prompt_for_comparison_values():
     ]
 
     for value in comparison_values:
-        value.prompt_for_user_input()
+        value.prompt_for_user_input(output_stream=output_stream, input_stream=input_stream)
         if not value.is_null():
             federation_config.set_value(value)
 
@@ -260,12 +382,12 @@ def prompt_for_comparison_values():
             "Expected role mapping group names (if unknown, leave blank):",
             multi_value=True
         )
-        member_of.prompt_for_user_input()
+        member_of.prompt_for_user_input(output_stream=output_stream, input_stream=input_stream)
 
         if not member_of.is_null():
             federation_config.set_value(member_of)
 
-    print("------------")
+    output_stream("------------")
 
     return federation_config
 
@@ -288,9 +410,12 @@ def parse_comparison_values_from_json(filename):
 
 
 def start_saml_reader():
+    """CLI hook that reads args from system
+    """
     # This is the CLI hook in setup.py
     cli(sys.argv[1:])
 
 
 if __name__ == '__main__':
+    # Can start the CLI with this file
     start_saml_reader()
