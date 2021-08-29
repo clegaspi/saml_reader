@@ -19,7 +19,14 @@ from saml_reader import __version__
 
 
 class OutputStream(StringIO):
+    """Emulates printing to stdout, but instead capturing data as a `StringIO`-like object.
+    """
     def print(self, data):
+        """Emulates the `print()` function for stdout.
+
+        Args:
+            data (Any): any object that implements `__str__()`
+        """
         self.write(data + '\n')
 
 
@@ -118,6 +125,31 @@ def run_analysis(
         input_type='xml', source='clip', filepath=None, raw_data=None,
         compare=False, compare_file=None, compare_object=None,
         print_analysis=True, print_summary=True, output_stream=print, input_stream=input):
+    """Interface to run SAML Reader analysis backend.
+
+    Args:
+        input_type (basestring, optional): Data type to be analyzed. Options are:
+            - `"xml"`: SAML dat as a decoded XML file. This is the default.
+            - `"base64"`: SAML data encoded as base64. This should be non-percent-encoded.
+            - `"har"`: SAML data contained in a har dump file. This should contain only one SAML response.
+        source (basestring, optional): Where to read the data from. Options are:
+            - `"clip"`: From the system clipboard. This is the default.
+            - `"stdin"`: From the stdin.
+            - `"file"`: From a file. Requires `filepath` be a valid path to a file.
+            - `"raw"`: From raw data sent to the function. Requires `raw_data` be valid SAML data.
+        filepath (basestring, optional): Path to the file to be read in. Requires `source='file'`.
+        raw_data (basestring, optional): Raw data to be parsed. Requires `source='raw'`.
+        compare (bool, optional): Whether to perform input comparison to SAML data. Defaults to False.
+        compare_file (basestring, optional): An input JSON file with comparison values. Requires `compare=True`.
+            Takes precendence over `compare_object`.
+        compare_object (MongoFederationConfig, optional): Comparison values as MongoFederationConfig object.
+        print_analysis (bool, optional): Prints the analysis to `output_stream`. Defaults to True.
+        print_summary (bool, optional): Prints the SAML data summary to `output_stream`. Defaults to True.
+        output_stream (function, optional): A function which takes one argument to ingest data output by this analysis.
+            Defaults to native `print` function.
+        input_stream (function, optional): A function which takes one argument (a prompt) and returns one argument
+            (a basestring) containing a user's answer to the prompt. Defaults to native `input` function.
+    """
 
     output_stream(f"SAML READER")
     output_stream(f"----------------------")
@@ -178,6 +210,27 @@ def run_analysis(
 
 
 def parse_saml_data(input_type='xml', source='clip', filepath=None, raw_data=None):
+    """Reading in and parsing SAML data.
+
+    Args:
+        input_type (basestring, optional): Data type to be analyzed. Options are:
+            - `"xml"`: SAML dat as a decoded XML file. This is the default.
+            - `"base64"`: SAML data encoded as base64. This should be non-percent-encoded.
+            - `"har"`: SAML data contained in a har dump file. This should contain only one SAML response.
+        source (basestring, optional): Where to read the data from. Options are:
+            - `"clip"`: From the system clipboard. This is the default.
+            - `"stdin"`: From the stdin.
+            - `"file"`: From a file. Requires `filepath` be a valid path to a file.
+            - `"raw"`: From raw data sent to the function. Requires `raw_data` be valid SAML data.
+        filepath (basestring, optional): Path to the file to be read in. Requires `source='file'`.
+        raw_data (basestring, optional): Raw data to be parsed. Requires `source='raw'`.
+
+    Raises:
+        ValueError: If an invalid combination of options is specified.
+
+    Returns:
+        BaseSamlParser: parsed SAML data object
+    """
     # Parse saml data before prompting for input values to not risk clipboard being erased
     constructor_func = None
     if source == 'stdin':
@@ -284,6 +337,11 @@ def prompt_for_comparison_values(output_stream=print, input_stream=input):
     """
     Prompt user to enter values for comparing with the SAML response data
 
+    Args:
+        output_stream (function, optional): A function which takes one argument to ingest data output by this analysis.
+            Defaults to native `print` function.
+        input_stream (function, optional): A function which takes one argument (a prompt) and returns one argument
+            (a basestring) containing a user's answer to the prompt. Defaults to native `input` function.
     Returns:
         (MongoFederationConfig) object containing validated comparison values
     """
@@ -314,7 +372,7 @@ def prompt_for_comparison_values(output_stream=print, input_stream=input):
     ]
 
     for value in comparison_values:
-        value.prompt_for_user_input()
+        value.prompt_for_user_input(output_stream=output_stream, input_stream=input_stream)
         if not value.is_null():
             federation_config.set_value(value)
 
@@ -324,7 +382,7 @@ def prompt_for_comparison_values(output_stream=print, input_stream=input):
             "Expected role mapping group names (if unknown, leave blank):",
             multi_value=True
         )
-        member_of.prompt_for_user_input()
+        member_of.prompt_for_user_input(output_stream=output_stream, input_stream=input_stream)
 
         if not member_of.is_null():
             federation_config.set_value(member_of)
