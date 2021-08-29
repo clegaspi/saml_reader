@@ -410,9 +410,12 @@ def parse_comparison_values_from_json(filename):
 
 
 def start_saml_reader():
+    """CLI hook that reads args from system
+    """
     # This is the CLI hook in setup.py
     cli(sys.argv[1:])
 
 
 if __name__ == '__main__':
+    # Can start the CLI with this file
     start_saml_reader()
