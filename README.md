@@ -19,7 +19,7 @@ for it. :)
   - [Updating the package](#updating-the-package)
     - [From PyPI](#from-pypi)
     - [From GitHub source](#from-github-source)
-  - [Runnig the web app](#runnig-the-web-app)
+  - [Running the web app](#running-the-web-app)
   - [Running the CLI](#running-the-cli)
     - [Data Sources](#data-sources)
       - [**Reading from a file**](#reading-from-a-file)
@@ -93,7 +93,7 @@ To pull down the latest version:
 
 ---
 
-## Runnig the web app
+## Running the web app
 
 This tool can be run locally as a web app. You simply need to run:
 
