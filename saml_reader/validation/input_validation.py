@@ -301,7 +301,7 @@ class MongoComparisonValue:
         user_input = self._get_and_validate_user_input(prompt=f"{list_index}.",
                                                        input_stream=input_stream,
                                                        output_stream=output_stream)
-        while user_input:
+        while user_input is not _NullUserInput:
             input_to_store.append(user_input)
             list_index += 1
             user_input = self._get_and_validate_user_input(prompt=f"{list_index}.",
