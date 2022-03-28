@@ -320,8 +320,10 @@ def compile_summary(validator):
     if not validator.get_claim_attributes():
         output_stream("No claim attributes found")
     else:
+        duplicate_attributes = validator.get_duplicate_attribute_names()
         for name, value in validator.get_claim_attributes().items():
             output_stream(f"Name: {name}")
+            output_stream(f"Is Duplicated: {'YES' if name in duplicate_attributes else 'No'}")
             if isinstance(value, list):
                 output_stream("Values:")
                 for v in value:
