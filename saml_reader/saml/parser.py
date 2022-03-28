@@ -5,6 +5,7 @@ and pulling specific pieces of information from the contents of the response doc
 In large part, the functionality builds on the python3-saml package produced by OneLogin.
 """
 
+from collections import defaultdict
 import re
 
 from onelogin.saml2.utils import OneLogin_Saml2_Utils as utils
@@ -330,6 +331,7 @@ class RegexSamlParser(BaseSamlParser):
         """
         self._saml = str(response)
         self._saml_values = dict()
+        self._duplicate_attributes = set()
 
         if self._is_encrypted():
             raise SamlResponseEncryptedError("SAML response is encrypted. Cannot parse without key", 'regex')
@@ -377,8 +379,7 @@ class RegexSamlParser(BaseSamlParser):
             result = transform_by_field[field](result)
             self._saml_values[field] = result
 
-    @staticmethod
-    def __transform_attributes(raw_data):
+    def __transform_attributes(self, raw_data):
         """
         Apply specific transformations to claim attributes.
 
@@ -392,18 +393,33 @@ class RegexSamlParser(BaseSamlParser):
             return None
         value_regex = re.compile(r"(?s)<(?:saml.?:)?AttributeValue.*?>(.*?)</(?:saml.?:)?AttributeValue>")
 
-        attributes_to_return_as_list = {'memberOf'}
+        special_transform_by_attribute = {}
+        self._duplicate_attributes = set()
 
-        transformed_attributes = dict()
+        transformed_attributes = defaultdict(list)
         for name, value in raw_data:
+            if name in transformed_attributes:
+                self._duplicate_attributes.add(name)
             value = value_regex.findall(value)
             if not value:
                 # findall() returns a list with an empty string if there was a match but the group was empty
                 # but returns an empty list if there were no matches
                 value = ['(could not parse)']
-            transformed_attributes[name] = value[0] if name not in attributes_to_return_as_list else value
+            if name in special_transform_by_attribute:
+                transformed_attributes[name].append(
+                    special_transform_by_attribute[name](value)
+                )
+            elif len(value) > 1:
+                transformed_attributes[name].extend(value)
+            else:
+                transformed_attributes[name].append(
+                    value[0] if value else ""
+                )
 
-        return transformed_attributes
+        return {
+            k: "" if not v else v if len(v) > 1 else v[0]
+            for k, v in transformed_attributes.items()
+        }
 
     def _is_encrypted(self):
         """
@@ -581,3 +597,12 @@ class RegexSamlParser(BaseSamlParser):
             (bool) True if any values were able to be parsed, False otherwise
         """
         return any(self._saml_values.values())
+    
+    def get_duplicate_attribute_names(self):
+        """Return any attribute names that were duplicated in the
+        attribute statement.
+
+        Returns:
+            set: set of duplicated attribute names
+        """
+        return self._duplicate_attributes
