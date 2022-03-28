@@ -2,9 +2,11 @@
 This file contains customized wrappers for several OneLogin SAML classes to expand
 parsing ability and control errors raised.
 """
+from collections import defaultdict
 from functools import partial
 import re
 
+from onelogin.saml2.constants import OneLogin_Saml2_Constants
 from onelogin.saml2.response import OneLogin_Saml2_Response
 from onelogin.saml2.xml_utils import OneLogin_Saml2_XML
 from onelogin.saml2 import compat
@@ -63,6 +65,55 @@ class OLISamlParser(OneLogin_Saml2_Response):
         if saml_request_node:
             raise IsASamlRequest("The SAML data contains a request and not a response",
                                  'relaxed' if self.used_relaxed_parser else 'strict')
+
+    def get_attributes(self, mark_duplicate_attributes=False):
+        """Get attributes from attribute statement.
+
+        Args:
+            mark_duplicate_attributes (bool, optional): True will return a second
+            value which is a set of attribute names which are duplicated in the
+            SAML data. Defaults to False.
+
+        Returns:
+            Union[Dict, Tuple[Dict, Set[str]]]: Attribute values, keyed by name. If
+            `mark_duplicate_attributes=True`, a second value is returned as
+            a set of strings with attribute values that are duplicated
+        """
+        # This is basically a copy-paste of the parent class get_attributes()
+        # with tweaks to handle duplicate attributes
+        attributes = defaultdict(list)
+        duplicate_attributes = set()
+
+        attribute_nodes = self.query_assertion('/saml:AttributeStatement/saml:Attribute')
+        for attribute_node in attribute_nodes:
+            attr_name = attribute_node.get('Name')
+            if attr_name in attributes:
+                duplicate_attributes.add(attr_name)
+            for attr in attribute_node.iterchildren('{%s}AttributeValue' % OneLogin_Saml2_Constants.NSMAP['saml']):
+                attr_text = OneLogin_Saml2_XML.element_text(attr)
+                if attr_text:
+                    attr_text = attr_text.strip()
+                    if attr_text:
+                        attributes[attr_name].append(attr_text)
+
+                # Parse any nested NameID children
+                for nameid in attr.iterchildren('{%s}NameID' % OneLogin_Saml2_Constants.NSMAP['saml']):
+                    attributes[attr_name].append({
+                        'NameID': {
+                            'Format': nameid.get('Format'),
+                            'NameQualifier': nameid.get('NameQualifier'),
+                            'value': nameid.text
+                        }
+                    })
+        if mark_duplicate_attributes:
+            return {
+                k: {
+                    'values': v,
+                    'is_duplicate': k in duplicate_attributes
+                }
+                for k, v in attributes.items()
+            }
+        return attributes
 
     def query_assertion(self, path):
         """

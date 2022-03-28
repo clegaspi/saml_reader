@@ -34,6 +34,7 @@ class StandardSamlParser(BaseSamlParser):
         """
         self._saml = OLISamlParser(response)
         self._saml_values = dict()
+        self._duplicate_attributes = set()
         super().__init__()
         self._parse_saml_values()
 
@@ -79,7 +80,7 @@ class StandardSamlParser(BaseSamlParser):
                 self._saml.query('/samlp:Response/ds:Signature/ds:SignedInfo/ds:SignatureMethod'),
             'audience': self._saml.query_assertion('/saml:Conditions/saml:AudienceRestriction/saml:Audience'),
             'issuer': self._saml.query_assertion('/saml:Issuer'),
-            'attributes': self._saml.get_attributes()
+            'attributes': self._saml.get_attributes(mark_duplicate_attributes=True)
         }
 
         transform_by_field = {
@@ -96,6 +97,11 @@ class StandardSamlParser(BaseSamlParser):
         for field, value in value_by_field.items():
             self._saml_values[field] = transform_by_field[field](value)
 
+        self._duplicate_attributes = set(
+            k for k, v in value_by_field['attributes'].items()
+            if v['is_duplicate']
+        )
+
     @staticmethod
     def __parse_attributes(attribute_data):
         """
@@ -110,17 +116,23 @@ class StandardSamlParser(BaseSamlParser):
         if not attribute_data:
             return None
 
-        special_transform_by_attribute = {
-            'memberOf': lambda x: x if x else []     # Retain list type for memberOf
-        }
+        # No special transforms at this time
+        special_transform_by_attribute = {}
 
         transformed_attributes = dict()
 
-        for attribute_name, value in attribute_data.items():
+        for attribute_name, value_dict in attribute_data.items():
+            value = value_dict['values']
             if attribute_name in special_transform_by_attribute:
-                transformed_attributes[attribute_name] = special_transform_by_attribute[attribute_name](value)
+                transformed_attributes[attribute_name] = (
+                    special_transform_by_attribute[attribute_name](value)
+                )
+            elif len(value) > 1:
+                transformed_attributes[attribute_name] = value
             else:
-                transformed_attributes[attribute_name] = value[0] if value else ""
+                transformed_attributes[attribute_name] = (
+                    value[0] if value else ""
+                )
 
         return transformed_attributes
 
@@ -289,6 +301,15 @@ class StandardSamlParser(BaseSamlParser):
             (bool) True if any values were able to be parsed, False otherwise
         """
         return any(self._saml_values.values())
+
+    def get_duplicate_attribute_names(self):
+        """Return any attribute names that were duplicated in the
+        attribute statement.
+
+        Returns:
+            set: set of duplicated attribute names
+        """
+        return self._duplicate_attributes
 
 
 class RegexSamlParser(BaseSamlParser):
