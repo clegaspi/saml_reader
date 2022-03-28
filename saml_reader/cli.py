@@ -166,6 +166,9 @@ def run_analysis(
             output_stream(f"The input data does not appear to be the specified input type '{input_type}'.\n"
                           f"Check to make sure that the input data is of the correct type.")
         return
+    except FileNotFoundError:
+        output_stream(f"The input file {filepath} was not found or could not be opened.")
+        return
 
     for msg in saml_data.get_errors():
         output_stream(msg)
@@ -187,6 +190,9 @@ def run_analysis(
                     output_stream(f"Attribute '{e.args[1]}' in the provided JSON did not pass validation")
                     return
                 raise e
+            except FileNotFoundError:
+                output_stream(f"Comparison JSON file {compare_file} was not found or could not be opened.")
+                return
             output_stream("Done")
         elif compare_object:
             federation_config = compare_object
@@ -227,6 +233,7 @@ def parse_saml_data(input_type='xml', source='clip', filepath=None, raw_data=Non
 
     Raises:
         ValueError: If an invalid combination of options is specified.
+        FileNotFoundError: If an input file does not exist
 
     Returns:
         BaseSamlParser: parsed SAML data object
@@ -240,6 +247,8 @@ def parse_saml_data(input_type='xml', source='clip', filepath=None, raw_data=Non
     elif source == 'file':
         if filepath and os.path.exists(filepath):
             constructor_func = partial(TextReader.from_file, filename=filepath)
+        else:
+            raise FileNotFoundError(f"Input file {filepath} not found!")
     elif source == 'raw' and raw_data:
         constructor_func = partial(TextReader, raw_data=raw_data)
     else:
