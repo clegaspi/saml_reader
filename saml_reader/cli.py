@@ -190,6 +190,9 @@ def run_analysis(
                     output_stream(f"Attribute '{e.args[1]}' in the provided JSON did not pass validation")
                     return
                 raise e
+            except FileNotFoundError:
+                output_stream(f"Comparison JSON file {compare_file} was not found or could not be opened.")
+                return
             output_stream("Done")
         elif compare_object:
             federation_config = compare_object
