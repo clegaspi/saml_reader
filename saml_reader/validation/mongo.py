@@ -209,6 +209,15 @@ class MongoSamlValidator:
         """
         return self._errors
 
+    def get_duplicate_attribute_names(self):
+        """
+        Get attribute names that were duplicated in the claims.
+
+        Returns:
+            (`set` of `str`) Duplicated claim names
+        """
+        return self._saml.get_duplicate_attribute_names()
+
 
 class MongoTestSuite(TestSuite):
     """
@@ -303,6 +312,9 @@ class MongoTestSuite(TestSuite):
                            required_context=['saml']),
             TestDefinition("regex_member_of", MongoTestSuite.verify_member_of_pattern,
                            dependencies=['member_of_not_empty'],
+                           required_context=['saml']),
+            TestDefinition("not_duplicate_member_of", MongoTestSuite.verify_member_of_is_not_duplicated,
+                           dependencies=['exists_member_of'],
                            required_context=['saml']),
 
             # Claim attribute comparison tests
@@ -924,6 +936,17 @@ class MongoTestSuite(TestSuite):
         return not context.get('comparison_values').get_parsed_value('role_mapping_expected', False)
 
     @staticmethod
+    def verify_member_of_is_not_duplicated(context):
+        """
+        Check if 'memberOf' claims attribute is in SAML response if customer
+        expects to do role mapping.
+
+        Returns:
+            (bool) true if attribute exists and customer expects it, false otherwise
+        """
+        return 'memberOf' not in context.get('saml').get_duplicate_attribute_names()
+
+    @staticmethod
     def verify_member_of_comparison_exists(context):
         """
         Check if 'memberOf' claims attribute has a comparison value entered
@@ -1195,6 +1218,24 @@ class ValidationReport:
                     "\n - {}", self._comparison_values.get_parsed_value('memberOf', [])) + \
                 "\n\nGenerally, this means that the user's account in the customer Active Directory\n" + \
                 "needs to be added to the correct group.",
+            'not_duplicate_member_of':
+                "The 'memberOf' claim attribute is duplicated in the SAML response instead of being\n"
+                "sent as an attribute with multiple values inside a single claim. For example:\n\n"
+                "DUPLICATED:\n"
+                "<Attribute Name=\"memberOf\">\n"
+                "    <AttributeValue>Value A</AttributeValue>\n"
+                "</Attribute>\n"
+                "<Attribute Name=\"memberOf\">\n"
+                "    <AttributeValue>Value B</AttributeValue>\n"
+                "</Attribute>\n\n"
+                "MULTI-VALUED:\n"
+                "<Attribute Name=\"memberOf\">\n"
+                "    <AttributeValue>Value A</AttributeValue>\n"
+                "    <AttributeValue>Value B</AttributeValue>\n"
+                "</Attribute>\n\n"
+                "This is common with customers who use KeyCloak as their identity provider.\n"
+                "Advise the customer to convert duplicated attributes into multi-valued attributes.\n"
+                "For KeyCloak, this can be done by setting 'Single Role Attribute: ON'.",
 
             # Federated domain tests
             'compare_domain_email':

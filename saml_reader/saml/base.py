@@ -181,3 +181,13 @@ class BaseSamlParser(ABC):
             (bool) True if any values were able to be parsed, False otherwise
         """
         pass
+
+    @abstractmethod
+    def get_duplicate_attribute_names(self):
+        """Return any attribute names that were duplicated in the
+        attribute statement.
+
+        Returns:
+            set: set of duplicated attribute names
+        """
+        pass
