@@ -61,9 +61,14 @@ class StandardSamlParser(BaseSamlParser):
         """
 
         value_by_field = {
-            'certificate': self._saml.query_assertion(
-                '/ds:Signature/ds:KeyInfo/ds:X509Data/ds:X509Certificate'
-            ),
+            'certificate': [
+                self._saml.query_assertion(
+                    '/ds:Signature/ds:KeyInfo/ds:X509Data/ds:X509Certificate'
+                ),
+                self._saml.query(
+                    '/samlp:Response/ds:Signature/ds:KeyInfo/ds:X509Data/ds:X509Certificate'
+                )
+            ],
             'name_id': self._saml.query_assertion(
                 '/saml:Subject/saml:NameID'
             ),
@@ -85,7 +90,9 @@ class StandardSamlParser(BaseSamlParser):
         }
 
         transform_by_field = {
-            'certificate': lambda x: x[0].text if x else None,
+            'certificate': lambda x: None if not x else
+                x[0][0].text if x[0] else
+                x[1][0].text if x[1] else None,
             'name_id': lambda x: x[0].text if x else None,
             'name_id_format': lambda x: x[0].attrib.get('Format') if x else None,
             'acs': lambda x: x[0][0].attrib.get('Destination') or x[1][0].attrib.get('Recipient') or None,
@@ -357,7 +364,7 @@ class RegexSamlParser(BaseSamlParser):
             # SAML response where there could be syntax errors if someone copy-pasted poorly
             'acs': re.compile(
                 r"(?s)((?:<saml.*?:Response)?.*?Destination=\"(?P<acs>.+?)\".*?>|"
-                r"(?:<saml.*?:SubjectConfirmationData)?.*?Recipient=\"(?P<acs_alt>.+?)\".*?)"
+                r"<(?:saml.?:)?SubjectConfirmationData.*?Recipient=\"(?P<acs_alt>.+?)\".*?)"
             ),
             'encryption': re.compile(r"(?s)<(?:ds:)?SignatureMethod.*?Algorithm=\".+?sha(1|256)\".*?>"),
             'audience': re.compile(r"(?s)<(?:saml.?:)?Audience(?:\s.*?>|>)(.*?)</(?:saml.?:)?Audience>"),
