@@ -348,13 +348,17 @@ class RegexSamlParser(BaseSamlParser):
         Returns:
             None
         """
+        # TODO: Let's use named groups instead, where we can
         regex_by_field = {
             'certificate': re.compile(r"(?s)<(?:ds:)?X509Certificate.*?>(.*?)</(?:ds:)?X509Certificate>"),
             'name_id': re.compile(r"(?s)<(?:saml.?:)?NameID.*?>(.*?)</(?:saml.?:)?NameID>"),
             'name_id_format': re.compile(r"(?s)<(?:saml.?:)?NameID.*?Format=\"(.+?)\".*?>"),
             # This is a pretty relaxed regex because it occurs right at the beginning of the
             # SAML response where there could be syntax errors if someone copy-pasted poorly
-            'acs': re.compile(r"(?s)(?:<saml.*?:Response)?.*?Destination=\"(.+?)\".*?>"),
+            'acs': re.compile(
+                r"(?s)((?:<saml.*?:Response)?.*?Destination=\"(?P<acs>.+?)\".*?>|"
+                r"(?:<saml.*?:SubjectConfirmationData)?.*?Recipient=\"(?P<acs_alt>.+?)\".*?)"
+            ),
             'encryption': re.compile(r"(?s)<(?:ds:)?SignatureMethod.*?Algorithm=\".+?sha(1|256)\".*?>"),
             'audience': re.compile(r"(?s)<(?:saml.?:)?Audience(?:\s.*?>|>)(.*?)</(?:saml.?:)?Audience>"),
             'issuer': re.compile(r"(?s)<(?:saml.?:)?Issuer.*?>(.*?)<\/(?:saml.?:)?Issuer>"),
@@ -367,7 +371,8 @@ class RegexSamlParser(BaseSamlParser):
             'certificate': lambda x: x[0] if x else None,
             'name_id': lambda x: x[0] if x else None,
             'name_id_format': lambda x: x[0] if x else None,
-            'acs': lambda x: x[0] if x else None,
+            'acs': lambda x: x[0][1] if x[0] and x[0][1] else x[0][2] 
+                if x and x[0] and x[0][2] else None,
             'encryption': lambda x: "SHA" + x[0] if x else None,
             'audience': lambda x: x[0] if x else None,
             'issuer': lambda x: x[0] if x else None,
