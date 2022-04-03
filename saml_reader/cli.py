@@ -169,6 +169,12 @@ def run_analysis(
     except FileNotFoundError:
         output_stream(f"The input file {filepath} was not found or could not be opened.")
         return
+    except IOError:
+        output_stream(
+            "There was no input data found. If using stdin, please use a pipe\n"
+            "or file redirect. Otherwise specify a file path to read\n"
+            "or specify --clip for clipboard.")
+        return
 
     for msg in saml_data.get_errors():
         output_stream(msg)
@@ -234,6 +240,7 @@ def parse_saml_data(input_type='xml', source='clip', filepath=None, raw_data=Non
     Raises:
         ValueError: If an invalid combination of options is specified.
         FileNotFoundError: If an input file does not exist
+        IOError: if there is no stdin data to read
 
     Returns:
         BaseSamlParser: parsed SAML data object
@@ -241,6 +248,9 @@ def parse_saml_data(input_type='xml', source='clip', filepath=None, raw_data=Non
     # Parse saml data before prompting for input values to not risk clipboard being erased
     constructor_func = None
     if source == 'stdin':
+        if sys.stdin.isatty():
+            # If stdin is from the Terminal and not a redirect/pipe
+            raise IOError("There is not content to read from stdin")
         constructor_func = TextReader.from_stdin
     elif source == 'clip':
         constructor_func = TextReader.from_clipboard
