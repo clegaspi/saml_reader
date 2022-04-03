@@ -137,7 +137,7 @@ def build_layout():
         ),
         html.Br(),
         html.Label(
-            "User's E-mail Address",
+            "User's Email Address/Username",
             style={"width": "20%"}),
         dcc.Input(
             placeholder="sam.ell@mydomain.com",

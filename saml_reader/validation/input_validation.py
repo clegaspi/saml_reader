@@ -360,7 +360,7 @@ class MongoFederationConfig:
                 - `encryption`: Encryption algorithm
                 - `firstName`: expected value for "firstName" claim attribute
                 - `lastName`: expected value for "lastName" claim attribute
-                - `email`: expected value for Name ID and "email" claim attribute
+                - `email`: expected value for Name ID
                 - `domains`: domain names associated with the identity provider, as a
                     list of strings.
                 - `role_mapping_expected`: whether role mapping is configured, determines if
