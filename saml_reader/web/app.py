@@ -4,7 +4,7 @@ from dash_extensions.enrich import DashProxy, MultiplexerTransform
 # to the same object which is not natively supported by Dash.
 app = DashProxy(__name__,
     external_stylesheets=[
-        "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css"
+        "https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css"
     ],
     transforms=[MultiplexerTransform()]
 )
