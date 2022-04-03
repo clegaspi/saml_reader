@@ -237,8 +237,7 @@ class MongoTestSuite(TestSuite):
 
     REQUIRED_CLAIMS = {
         'firstName',
-        'lastName',
-        'email'
+        'lastName'
     }
 
     def __init__(self, saml, certificate=None, comparison_values=None):
@@ -300,11 +299,6 @@ class MongoTestSuite(TestSuite):
             TestDefinition("regex_last_name", MongoTestSuite.verify_last_name_pattern,
                            dependencies=['exists_last_name'],
                            required_context=['saml']),
-            TestDefinition("exists_email", MongoTestSuite.verify_email_exists,
-                           required_context=['saml']),
-            TestDefinition("regex_email", MongoTestSuite.verify_email_pattern,
-                           dependencies=['exists_email'],
-                           required_context=['saml']),
             TestDefinition("exists_member_of", MongoTestSuite.verify_member_of_exists,
                            required_context=['saml']),
             TestDefinition("member_of_not_empty", MongoTestSuite.verify_member_of_not_empty,
@@ -330,12 +324,6 @@ class MongoTestSuite(TestSuite):
             TestDefinition("compare_last_name", MongoTestSuite.verify_last_name,
                            dependencies=['exists_comparison_last_name'],
                            required_context=['saml', 'comparison_values']),
-            TestDefinition("exists_comparison_email", MongoTestSuite.verify_email_comparison_exists,
-                           dependencies=['regex_email'],
-                           required_context=['comparison_values']),
-            TestDefinition("compare_email", MongoTestSuite.verify_email,
-                           dependencies=['exists_comparison_email'],
-                           required_context=['saml', 'comparison_values']),
             TestDefinition("member_of_is_expected", MongoTestSuite.verify_member_of_is_expected,
                            dependencies=[('exists_member_of', TEST_FAIL)],
                            required_context=['comparison_values']),
@@ -346,26 +334,22 @@ class MongoTestSuite(TestSuite):
                            dependencies=['exists_comparison_member_of'],
                            required_context=['saml', 'comparison_values']),
 
+            # Email and Name ID comparison tests
+            TestDefinition("exists_comparison_email", MongoTestSuite.verify_email_comparison_exists,
+                           required_context=['comparison_values']),
+            TestDefinition("compare_email_name_id", MongoTestSuite.verify_name_id,
+                           dependencies=['regex_name_id', 'exists_comparison_email'],
+                           required_context=['saml', 'comparison_values']),
+
             # Federated domain tests
             TestDefinition("exists_comparison_domain", MongoTestSuite.verify_domain_comparison_exists,
                            required_context=['comparison_values']),
-            TestDefinition("compare_domain_email", MongoTestSuite.verify_domain_in_email,
-                           dependencies=['regex_email', 'exists_comparison_domain'],
-                           required_context=['saml', 'comparison_values']),
             TestDefinition("compare_domain_comparison_email", MongoTestSuite.verify_domain_in_comparison_email,
                            dependencies=['exists_comparison_email', 'exists_comparison_domain'],
                            required_context=['comparison_values']),
             TestDefinition("compare_domain_name_id", MongoTestSuite.verify_domain_in_name_id,
                            dependencies=['regex_name_id', 'exists_comparison_domain'],
                            required_context=['saml', 'comparison_values']),
-
-            # Email and Name ID comparison tests
-            TestDefinition("compare_email_name_id", MongoTestSuite.verify_name_id,
-                           dependencies=['regex_name_id', 'exists_comparison_email'],
-                           required_context=['saml', 'comparison_values']),
-            TestDefinition("match_name_id_email_in_saml", MongoTestSuite.verify_name_id_and_email_are_the_same,
-                           dependencies=['regex_email', 'regex_name_id'],
-                           required_context=['saml']),
 
             # Issuer URI tests
             TestDefinition("exists_issuer", MongoTestSuite.verify_issuer_exists,
@@ -847,48 +831,14 @@ class MongoTestSuite(TestSuite):
                context.get('saml').get_attributes().get('lastName').lower()
 
     @staticmethod
-    def verify_email_exists(context):
-        """
-        Check if SAML response has 'email' claims attribute
-
-        Returns:
-            (bool) true if attribute is in SAML response, false otherwise
-        """
-        return 'email' in (context.get('saml').get_attributes() or dict())
-
-    @staticmethod
-    def verify_email_pattern(context):
-        """
-        Check if 'email' claims attribute matches regex pattern
-
-        Returns:
-            (bool) true if matches, false otherwise
-        """
-        return MongoTestSuite._matches_regex(
-            UserInputValidator().get_validation_regex('email'),
-            context.get('saml').get_attributes().get('email')
-        )
-
-    @staticmethod
     def verify_email_comparison_exists(context):
         """
-        Check if 'email' claims attribute has a comparison value entered
+        Check if Name ID (email/username) has a comparison value entered
 
         Returns:
             (bool) true if comparison value exists, false otherwise
         """
         return context.get('comparison_values').get_parsed_value('email') is not None
-
-    @staticmethod
-    def verify_email(context):
-        """
-        Check if 'email' claims attribute matches comparison value entered (case-insensitive)
-
-        Returns:
-            (bool) true if matches, false otherwise
-        """
-        return context.get('comparison_values').get_parsed_value('email').lower() == \
-               context.get('saml').get_attributes().get('email').lower()
 
     @staticmethod
     def verify_member_of_exists(context):
@@ -972,22 +922,6 @@ class MongoTestSuite(TestSuite):
 
     # Name ID, email, and domain tests
     @staticmethod
-    def verify_name_id_and_email_are_the_same(context):
-        """
-        Check if Name ID and email values from SAML response match (case-insensitive). This is not
-        a hard requirement, but is typical and a mismatch may indicate an incorrect
-        configuration.
-
-        Returns:
-            (bool) True if both values are present in the SAML response and match
-        """
-        # Not a requirement, but may indicate that a setting is incorrect
-        name_id = context.get('saml').get_subject_name_id()
-        email = context.get('saml').get_attributes().get('email')
-
-        return name_id.lower() == email.lower()
-
-    @staticmethod
     def verify_domain_comparison_exists(context):
         """
         Checks if a domain was specified for comparison
@@ -1006,17 +940,6 @@ class MongoTestSuite(TestSuite):
             (bool) True if Name ID ends with one of the domains, False otherwise
         """
         return any(context.get('saml').get_subject_name_id().lower().endswith('@' + domain)
-                   for domain in context.get('comparison_values').get_parsed_value('domains'))
-
-    @staticmethod
-    def verify_domain_in_email(context):
-        """
-        Checks if email attribute contains one of the federated domains specified
-
-        Returns:
-            (bool) True if email contains ends with one of the domains, False otherwise
-        """
-        return any(context.get('saml').get_attributes().get('email').lower().endswith('@' + domain)
                    for domain in context.get('comparison_values').get_parsed_value('domains'))
 
     @staticmethod
@@ -1178,6 +1101,20 @@ class ValidationReport:
             'regex_name_id':
                 f"The Name ID does not appear to be an email address.\n"
                 f"Name ID: {self._saml.get_subject_name_id()}",
+            'compare_email_name_id':
+                "The Name ID does not match the provided email value:\n" +
+                f"Name ID value: {self._saml.get_subject_name_id()}\n" +
+                f"Specified email value: {self._comparison_values.get_parsed_value('email')}" +
+                "\n\nThe Name ID is the value that Atlas expects as the user's\n" +
+                "username, and if this differs from the a current user's username,\n" +
+                "then the identity provider is likely not sending the correct value,\n" +
+                "possibly because it is configured to send the wrong user attribute.\n" +
+                "For example, it may be sending the UPN (user principal name) instead\n" +
+                "of the email address. This is more common with Azure AD users, because\n" +
+                "the documentation indicates that customers should use 'user.userprincipalname'\n" +
+                "as the source attribute for the Name ID, even though there is a caveat that\n" +
+                "states the customer should use the source attribute that contains the user's\n" +
+                "username/email address. This could be contained in 'user.mail' instead.",
 
             # Name ID Format tests
             'exists_name_id_format':
@@ -1200,9 +1137,6 @@ class ValidationReport:
             'exists_last_name': self._get_claim_attribute_exist('lastName'),
             'regex_last_name': self._get_claim_attribute_regex('lastName'),
             'compare_last_name': self._get_claim_attribute_mismatch("lastName"),
-            'exists_email': self._get_claim_attribute_exist('email'),
-            'regex_email': self._get_claim_attribute_regex('email'),
-            'compare_email': self._get_claim_attribute_mismatch("email"),
 
             # Role mapping tests
             'member_of_is_expected':
@@ -1238,25 +1172,13 @@ class ValidationReport:
                 "For KeyCloak, this can be done by setting 'Single Role Attribute: ON'.",
 
             # Federated domain tests
-            'compare_domain_email':
-                "The 'email' attribute does not contain one of the federated domains specified:\n" +
-                f"SAML 'email' attribute value: {self._saml.get_subject_name_id()}\n" +
-                f"Specified valid domains:" +
-                self._print_a_list("\n - {}", self._comparison_values.get_parsed_value('domains', [])) +
-                "\n\nIf the 'email' attribute does not contain a verified domain name, it may be because\n" +
-                "the source Active Directory field does not contain the user's e-mail address.\n" +
-                "The source field may contain an internal username or other value instead.\n" +
-                "This is not necessarily an error, but may indicate there is a misconfiguration.\n" +
-                "The value in Name ID will be the user's login username and the value in the\n" +
-                "email attribute will be the address where the user receives email messages.\n" +
-                "So only the Name ID must contain the domain.",
             'compare_domain_comparison_email':
-                "The specified comparison e-mail value does not contain\n" +
+                "The specified comparison email value does not contain\n" +
                 "one of the federated domains specified:\n" +
-                f"Specified e-mail value: {self._comparison_values.get_parsed_value('email')}\n" +
+                f"Specified email value: {self._comparison_values.get_parsed_value('email')}\n" +
                 f"Specified valid domains:" +
                 self._print_a_list("\n - {}", self._comparison_values.get_parsed_value('domains', [])) +
-                "\n\nIf the e-mail specified is the user's MongoDB username, then the Atlas\n" +
+                "\n\nIf the email specified is the user's MongoDB username, then the Atlas\n" +
                 "identity provider configuration likely has the incorrect domain(s) verified.",
             'compare_domain_name_id':
                 "The Name ID does not contain one of the federated domains specified:\n" +
@@ -1264,22 +1186,8 @@ class ValidationReport:
                 f"Specified valid domains:" +
                 self._print_a_list("\n - {}", self._comparison_values.get_parsed_value('domains', [])) +
                 "\n\nIf the Name ID does not contain a verified domain name, it may be because\n" +
-                "the source Active Directory field does not contain the user's e-mail address.\n" +
+                "the source Active Directory field does not contain the user's email address.\n" +
                 "The source field may contain an internal username or other value instead.",
-
-            # Email and Name ID tests
-            'compare_email_name_id':
-                "The Name ID does not match the provided e-mail value:\n" +
-                f"Name ID value: {self._saml.get_subject_name_id()}\n" +
-                f"Specified email value: {self._comparison_values.get_parsed_value('email')}" +
-                "\n\nThis is not necessarily an error, but may indicate there is a misconfiguration.\n" +
-                "The value in Name ID will be the user's login username and the value in the\n" +
-                "email attribute will be the address where the user receives email messages.",
-            'match_name_id_email_in_saml':
-                "The Name ID and email attributes are not the same. This is not\n" +
-                "necessarily an error, but may indicate there is a misconfiguration.\n" +
-                "The value in Name ID will be the user's login username and the value in the\n" +
-                "email attribute will be the address where the user receives email messages.",
 
             # Issuer URI tests
             'exists_issuer':
