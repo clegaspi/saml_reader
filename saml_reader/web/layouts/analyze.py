@@ -93,15 +93,53 @@ def build_layout():
         ],
         style={
             "width": "50%",
-            "float": "left",
-            "margin-right": "4%"
+            'display': 'inline-block',
+            'vertical-align': 'top',
         })
 
-    rs_top_text = dcc.Markdown(
-        """
-        ### Comparison values
-        
-        If you would like to enter comparison values, please do so below."""
+    rs_top_text = html.Div([
+        dcc.Markdown(
+            """
+            ### Comparison values
+
+            If you would like to enter comparison values, please do so below."""
+        ),
+        html.Details([
+            html.Summary(
+                dcc.Markdown(
+                    "Need help finding this info? Click here.",
+                    style={
+                        'vertical-align': 'top',
+                        'display': 'inline-block'
+                    }
+                )
+            ),
+            dcc.Markdown(
+                """
+                #### Finding comparison values
+
+                First name, last name, and username information can be found in the
+                Support Portal or admin panel.
+                
+                The Audience URI, Assertion Consumer Service URL, and associated domains
+                can be found in the customer's federation settings on the identity provider
+                information card.
+                
+                The Issuer URI, encryption type, and SAML certificate expiration date
+                can be found by clicking "Modify" on the identity provider information
+                card in the customer's federation settings.
+                
+                To determine if role mapping is expected, first look to see if any
+                organizations are associated with the active identity provider configuration.
+                For each organization that is associated, find the associated organization in
+                the Organizations section and click into the settings. From the organization settings,
+                click into Role Mappings. If there are any role mappings defined in any organization,
+                then the customer is expecting role mapping to be configured.
+                
+                For expected group names, if a customer has specified which group name(s) their
+                user is supposed to have, then you can add that to this list."""
+            )]
+        )]
     )
 
     comparison_fields = html.Div([
@@ -114,72 +152,132 @@ def build_layout():
             message='Are you sure you want to clear all values including SAML data?',
         ),
         html.Br(),
-        html.Label(
-            "User's First Name",
-            style={"width": "20%"}),
-        dcc.Input(
-            placeholder="Sam",
-            type='text',
-            value='',
-            id='compare-first-name',
-            style={"width": "300px"}
-        ),
-        html.Br(),
-        html.Label(
-            "User's Last Name",
-            style={"width": "20%"}),
-        dcc.Input(
-            placeholder="Ell",
-            type='text',
-            value='',
-            id='compare-last-name',
-            style={"width": "300px"}
-        ),
-        html.Br(),
-        html.Label(
-            "User's Email Address/Username",
-            style={"width": "20%"}),
-        dcc.Input(
-            placeholder="sam.ell@mydomain.com",
-            type='text',
-            value='',
-            id='compare-email',
-            style={"width": "300px"}
-        ),
-        html.Br(),
-        html.Label(
-            "Audience URI",
-            style={"width": "20%"}),
-        dcc.Input(
-            placeholder="https://www.okta.com/saml2/service-provider/...",
-            type='text',
-            value='',
-            id='compare-audience',
-            style={"width": "300px"}
-        ),
-        html.Br(),
-        html.Label(
-            "Assertion Consumer Service URL",
-            style={"width": "20%"}),
-        dcc.Input(
-            placeholder="https://auth.mongodb.com/sso/saml2/...",
-            type='text',
-            value='',
-            id='compare-acs',
-            style={"width": "300px"}
-        ),
-        html.Br(),
-        html.Label(
-            "Issuer URI",
-            style={"width": "20%"}),
-        dcc.Input(
-            placeholder="idp-entity-id",
-            type='text',
-            value='',
-            id='compare-issuer',
-            style={"width": "300px"}
-        ),
-        html.Br(),
+        html.Div([
+            html.Label(
+                "User's First Name",
+                style={
+                    "width": "30%",
+                    'display': 'inline-block',
+                    'vertical-align': 'middle'
+                }
+            ),
+            dcc.Input(
+                placeholder="Sam",
+                type='text',
+                value='',
+                id='compare-first-name',
+                style={
+                    "width": "300px",
+                    'display': 'inline-block',
+                    'vertical-align': 'middle'
+                }
+            )
+        ]),
+        html.Div([
+            html.Label(
+                "User's Last Name",
+                style={
+                    "width": "30%",
+                    'display': 'inline-block',
+                    'vertical-align': 'middle'
+                }
+            ),
+            dcc.Input(
+                placeholder="Ell",
+                type='text',
+                value='',
+                id='compare-last-name',
+                style={
+                    "width": "300px",
+                    'display': 'inline-block',
+                    'vertical-align': 'middle'
+                }
+            )
+        ]),
+        html.Div([
+            html.Label(
+                "User's Email Address/Username",
+                style={
+                    "width": "30%",
+                    'display': 'inline-block',
+                    'vertical-align': 'middle'
+                }
+            ),
+            dcc.Input(
+                placeholder="sam.ell@mydomain.com",
+                type='text',
+                value='',
+                id='compare-email',
+                style={
+                    "width": "300px",
+                    'display': 'inline-block',
+                    'vertical-align': 'middle'
+                }
+            )
+        ]),
+        html.Div([
+            html.Label(
+                "Audience URI",
+                style={
+                    "width": "30%",
+                    'display': 'inline-block',
+                    'vertical-align': 'middle'
+                }
+            ),
+            dcc.Input(
+                placeholder="https://www.okta.com/saml2/service-provider/...",
+                type='text',
+                value='',
+                id='compare-audience',
+                style={
+                    "width": "300px",
+                    'display': 'inline-block',
+                    'vertical-align': 'middle'
+                }
+            ),
+        ]),
+        html.Div([
+            html.Label(
+                "Assertion Consumer Service URL",
+                style={
+                    "width": "30%",
+                    'display': 'inline-block',
+                    'vertical-align': 'middle'
+                }
+            ),
+            dcc.Input(
+                placeholder="https://auth.mongodb.com/sso/saml2/...",
+                type='text',
+                value='',
+                id='compare-acs',
+                style={
+                    "width": "300px",
+                    'display': 'inline-block',
+                    'vertical-align': 'middle'
+                }
+            )
+        ]),
+        html.Div([
+            html.Label(
+                "Issuer URI",
+                style={
+                    "width": "30%",
+                    'display': 'inline-block',
+                    'vertical-align': 'middle'
+                }
+            ),
+            dcc.Input(
+                placeholder="idp-entity-id",
+                type='text',
+                value='',
+                id='compare-issuer',
+                style={
+                    "width": "300px",
+                    'display': 'inline-block',
+                    'vertical-align': 'middle'
+                }
+            )
+        ]),
         html.Label(
             "Encryption Type"
         ),
@@ -245,8 +343,8 @@ def build_layout():
                     }
                 )],
             style={
-                "width": "400px", 
-                "border": "1px solid black", 
+                "width": "400px",
+                "border": "1px solid black",
                 "display": "inline-block",
                 "margin-bottom": "1em",
                 "margin-top": "1em",
@@ -281,7 +379,8 @@ def build_layout():
                 html.Button(
                     "Add",
                     id='submit-add-group',
-                    style={"display": "inline-block", "vertical-align": "middle"}
+                    style={"display": "inline-block",
+                           "vertical-align": "middle"}
                 ),
                 html.Br(),
                 html.Div(
@@ -304,8 +403,8 @@ def build_layout():
                             }
                         )],
                     style={
-                        "width": "400px", 
-                        "border": "1px solid black", 
+                        "width": "400px",
+                        "border": "1px solid black",
                         "display": "inline-block",
                         "margin-bottom": "1em",
                         "margin-top": "1em",
@@ -314,7 +413,8 @@ def build_layout():
                 ),
             ]
         )
-    ])
+    ], style={'display': 'inline-block',
+              'vertical-align': 'middle'})
 
     right_side = html.Div(
         children=[
@@ -323,7 +423,9 @@ def build_layout():
             comparison_fields
         ],
         style={
-            "flex-grow": 1
+            'display': 'inline-block',
+            'vertical-align': 'top',
+            'width': '50%'
         }
     )
 
@@ -331,6 +433,7 @@ def build_layout():
         left_side, right_side
     ], className="row", style={"margin-bottom": "3em"})
     return layout
+
 
 """Page layout"""
 layout = build_layout()
