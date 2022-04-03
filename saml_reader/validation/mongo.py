@@ -1,31 +1,17 @@
 """
-These classes handle all data validation specific to MongoDB Cloud
+These classes handle SAML data validation specific to MongoDB Cloud
 """
 import re
+from datetime import datetime
+
 from saml_reader.validation.graph_suite import TestDefinition, TestSuite, TEST_FAIL
-
-"""Regular expression to match (most) valid e-mail addresses"""
-EMAIL_REGEX_MATCH = r"\b(?i)([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})\b"
-
-"""Regular expressions to validate SAML fields and claim attributes"""
-VALIDATION_REGEX_BY_ATTRIB = {
-    'firstName': r'^\s*\S+.*$',
-    'lastName': r'^\s*\S+.*$',
-    'email': EMAIL_REGEX_MATCH,
-    'issuer': r'^\s*\S+.*$',
-    'acs': r'^https:\/\/auth\.mongodb\.com\/sso\/saml2\/[a-z0-9A-Z]{20}$',
-    'audience': r'^https:\/\/www\.okta\.com\/saml2\/service-provider\/[a-z]{20}$',
-    'encryption': r'^(?i)sha-?(1|256)$',
-    'domains': r'^(?i)[A-Z0-9.-]+?\.[A-Z]{2,}$',
-    'memberOf': r'^\s*\S+.*$',
-    'role_mapping_expected': '^(?i)[YN]$'
-}
+from saml_reader.validation.input_validation import MongoFederationConfig, UserInputValidator
 
 
-class MongoVerifier:
+class MongoSamlValidator:
     """
     Interprets SAML and certificate data and compares it against expected patterns specific
-    to MongoDB Cloud and entered values
+    to MongoDB Cloud and entered comparison values
     """
 
     def __init__(self, saml, cert=None, comparison_values=None):
@@ -62,7 +48,11 @@ class MongoVerifier:
             None
         """
         self._errors = []
-        test_suite = MongoTestSuite(self._saml, self._comparison_values)
+        test_suite = MongoTestSuite(
+            self._saml,
+            comparison_values=self._comparison_values,
+            certificate=self._cert
+        )
         test_suite.run()
         self._build_report(test_suite)
         self._validated = True
@@ -92,7 +82,7 @@ class MongoVerifier:
 
         # Get the report messages for the failed tests
         messages = ValidationReport(
-            self._saml, self._comparison_values
+            self._saml, self._cert, self._comparison_values
         ).get_messages_by_name(
             failed_tests
         )
@@ -125,6 +115,15 @@ class MongoVerifier:
         if self._cert:
             return self._cert.get_organization_name() or self._cert.get_common_name()
         return None
+
+    def get_certificate(self):
+        """
+        Get SAML signing certificate.
+
+        Returns:
+            (`Certificate` or `None`) Certificate object, if valid one found in SAML, otherwise None
+        """
+        return self._cert
 
     def get_issuer(self):
         """
@@ -210,229 +209,14 @@ class MongoVerifier:
         """
         return self._errors
 
-
-class MongoFederationConfig:
-    """
-    Stores user-provided federation configuration values for comparison with SAML data
-    """
-
-    ATTRIB_PARSING_FUNCS = {
-        'domains': lambda x: [v.strip().lower() for v in x],
-        'encryption': lambda x: "SHA" + re.findall(VALIDATION_REGEX_BY_ATTRIB['encryption'], x[0])[0],
-        'firstName': lambda x: x[0].strip(),
-        'lastName': lambda x: x[0].strip(),
-        'email': lambda x: x[0].strip(),
-        'issuer': lambda x: x[0],
-        'acs': lambda x: x[0],
-        'audience': lambda x: x[0],
-        'role_mapping_expected': lambda x: x[0].upper() == 'Y'
-    }
-
-    def __init__(self, **kwargs):
+    def get_duplicate_attribute_names(self):
         """
-        Set comparison values and verify they match a regular expression (input validation)
-
-        Args:
-            **kwargs: currently accepted keywords are:
-                - `issuer`: Issuer URI
-                - `audience`: Audience URL
-                - `acs`: Assertion Consumer Service URL
-                - `encryption`: Encryption algorithm
-                - `firstName`: expected value for "firstName" claim attribute
-                - `lastName`: expected value for "lastName" claim attribute
-                - `email`: expected value for Name ID and "email" claim attribute
-                - `domains`: domain names associated with the identity provider, as a
-                    string. Multiple domains separated by whitespace.
-        """
-        self._settings = dict()
-        if kwargs:
-            self.set_values(kwargs)
-
-    def get_value(self, value_name, default=None):
-        """
-        Get comparison value by name
-
-        Args:
-            value_name (basestring): name of comparison value keyword
-            default (object, optional): the value returned if the comparison value is not populated. Default: None
+        Get attribute names that were duplicated in the claims.
 
         Returns:
-            (`basestring` or `None`) comparison value, `None` if name does not exist
+            (`set` of `str`) Duplicated claim names
         """
-        return self._settings.get(value_name, default)
-
-    def set_values(self, value_dict):
-        """
-        Set multiple comparison values
-
-        Args:
-            value_dict (dict): comparison values, keyed by keyword name
-
-        Returns:
-            None
-        """
-        for name, value in value_dict.items():
-            self.set_value(name, value)
-
-    def set_value(self, name, value):
-        """
-        Sets a single comparison value by name and value if it matches input validation.
-        See `MongoFederationConfig.__init__()` for the list of valid keywords.
-
-        Args:
-            name (basestring): a valid keyword
-            value (basestring): comparison value for keyword
-
-        Returns:
-            None
-
-        Raises:
-            (ValueError) if value doesn't pass validation or keyword is not recognized
-        """
-        if value is None:
-            return
-
-        if name in VALIDATION_REGEX_BY_ATTRIB:
-            if not isinstance(value, list):
-                value = [value]
-            if all(self.validate_input(name, v) for v in value):
-                if name in self.ATTRIB_PARSING_FUNCS:
-                    # Check if we need to parse the value
-                    value = self.ATTRIB_PARSING_FUNCS[name](value)
-                self._settings[name] = value
-            else:
-                raise ValueError(f"Attribute '{name}' did not pass input validation")
-        else:
-            raise ValueError(f"Unknown attribute name: {name}")
-
-    @staticmethod
-    def validate_input(name, value):
-        """
-        Validates input for a certain attribute against expected regex pattern
-
-        Args:
-            name (basestring): name of the attribute
-            value (basestring): value to validate
-
-        Returns:
-            (bool) True if matches, false otherwise
-        """
-        if name not in VALIDATION_REGEX_BY_ATTRIB:
-            raise ValueError(f"Unknown attribute name: {name}")
-        if value is None:
-            return True
-        return bool(re.fullmatch(VALIDATION_REGEX_BY_ATTRIB[name], value))
-
-
-class MongoComparisonValue:
-    """
-    Collects comparison value input from the user through stdin prompts
-    """
-    def __init__(self, name, prompt, multi_value=False, default=None):
-        """
-        Create a comparison value object for a given value type.
-
-        Args:
-            name (basestring): name of the input value, must be contained in VALIDATION_REGEX_BY_ATTRIB.
-            prompt (basestring): the text with which to prompt the user during input
-            multi_value (bool, optional): True if the user should be prompted for more than one input value,
-                False will only prompt for one input value. Default: False (one input)
-            default (object, optional): The default value to set if the user does not input anything. Default: None
-        """
-        if name not in VALIDATION_REGEX_BY_ATTRIB:
-            raise ValueError(f"Unknown value name: {name}")
-        self._name = name
-        self._prompt = prompt
-        self._multi_value = multi_value
-        if MongoFederationConfig.validate_input(name, default):
-            self._default = default
-        else:
-            raise ValueError(f"Invalid default value '{default}' for attribute '{name}'")
-
-    def prompt_for_user_input(self):
-        """
-        Prompt user for input using stdin.
-
-        Returns:
-            (`basestring`, `list`, or `object`) The user input as a string or list, depending if multi-valued
-                or the default value if no user input provided
-        """
-        if self._multi_value:
-            user_input = self._get_multi_value()
-        else:
-            user_input = self._get_single_value()
-
-        if user_input is None:
-            return self._default
-        return user_input
-
-    def get_name(self):
-        """
-        Get value name
-
-        Returns:
-            (basestring) value name
-        """
-        return self._name
-
-    def _get_single_value(self):
-        """
-        Prompt user for a single value with default prompt.
-
-        Returns:
-            (`basestring` or `object`) The user input as a string
-                or the default value if no user input provided
-        """
-        return self._get_and_validate_user_input()
-
-    def _get_multi_value(self):
-        """
-        Prompt user for a multiple values with a numbered prompt.
-
-        Returns:
-            (`list` or `object`) The user input as a list
-                or the default value if no user input provided
-        """
-        input_to_store = []
-        print(self._prompt)
-        list_index = 1
-        user_input = self._get_and_validate_user_input(prompt=f"{list_index}.")
-        while user_input:
-            input_to_store.append(user_input)
-            list_index += 1
-            user_input = self._get_and_validate_user_input(prompt=f"{list_index}.")
-        if not input_to_store:
-            input_to_store = self._default
-
-        return input_to_store
-
-    def _get_and_validate_user_input(self, prompt=None):
-        """
-        Prompts user for input from stdin.
-
-        Args:
-            prompt (basestring, optional): The text to prompt the user with.
-                Default: None (prompts with self._prompt)
-
-        Returns:
-            (`basestring`) the data input by the user. None if user inputs nothing.
-        """
-        if prompt is None:
-            prompt = self._prompt
-
-        if not re.match(r'.*\s$', prompt):
-            # If the prompt doesn't end with a whitespace character, add a space for padding
-            prompt += " "
-
-        while True:
-            user_input = input(prompt)
-            if user_input:
-                if MongoFederationConfig.validate_input(self._name, user_input):
-                    return user_input
-                else:
-                    print(f"Input did not pass validation. Try again or skip the value.")
-            else:
-                return None
+        return self._saml.get_duplicate_attribute_names()
 
 
 class MongoTestSuite(TestSuite):
@@ -453,16 +237,17 @@ class MongoTestSuite(TestSuite):
 
     REQUIRED_CLAIMS = {
         'firstName',
-        'lastName',
-        'email'
+        'lastName'
     }
 
-    def __init__(self, saml, comparison_values=None):
+    def __init__(self, saml, certificate=None, comparison_values=None):
         """
         Create test suite with supplied SAML and comparison data.
 
         Args:
             saml (BaseSamlParser): parsed SAML data
+            certificate (Certificate, optional): SAML signing certificate, if one was
+                provided in the SAML data. Default: None (no certificate available)
             comparison_values (MongoFederationConfig, optional): comparison values to
                 compare with data in SAML response. Default: None (no comparison
                 tests will be performed)
@@ -470,7 +255,8 @@ class MongoTestSuite(TestSuite):
         super().__init__()
         self.set_context({
             'saml': saml,
-            'comparison_values': comparison_values or MongoFederationConfig()
+            'comparison_values': comparison_values or MongoFederationConfig(),
+            'certificate': certificate
         })
         self._tests = self._get_tests()
 
@@ -513,11 +299,6 @@ class MongoTestSuite(TestSuite):
             TestDefinition("regex_last_name", MongoTestSuite.verify_last_name_pattern,
                            dependencies=['exists_last_name'],
                            required_context=['saml']),
-            TestDefinition("exists_email", MongoTestSuite.verify_email_exists,
-                           required_context=['saml']),
-            TestDefinition("regex_email", MongoTestSuite.verify_email_pattern,
-                           dependencies=['exists_email'],
-                           required_context=['saml']),
             TestDefinition("exists_member_of", MongoTestSuite.verify_member_of_exists,
                            required_context=['saml']),
             TestDefinition("member_of_not_empty", MongoTestSuite.verify_member_of_not_empty,
@@ -525,6 +306,9 @@ class MongoTestSuite(TestSuite):
                            required_context=['saml']),
             TestDefinition("regex_member_of", MongoTestSuite.verify_member_of_pattern,
                            dependencies=['member_of_not_empty'],
+                           required_context=['saml']),
+            TestDefinition("not_duplicate_member_of", MongoTestSuite.verify_member_of_is_not_duplicated,
+                           dependencies=['exists_member_of'],
                            required_context=['saml']),
 
             # Claim attribute comparison tests
@@ -540,12 +324,6 @@ class MongoTestSuite(TestSuite):
             TestDefinition("compare_last_name", MongoTestSuite.verify_last_name,
                            dependencies=['exists_comparison_last_name'],
                            required_context=['saml', 'comparison_values']),
-            TestDefinition("exists_comparison_email", MongoTestSuite.verify_email_comparison_exists,
-                           dependencies=['regex_email'],
-                           required_context=['comparison_values']),
-            TestDefinition("compare_email", MongoTestSuite.verify_email,
-                           dependencies=['exists_comparison_email'],
-                           required_context=['saml', 'comparison_values']),
             TestDefinition("member_of_is_expected", MongoTestSuite.verify_member_of_is_expected,
                            dependencies=[('exists_member_of', TEST_FAIL)],
                            required_context=['comparison_values']),
@@ -556,26 +334,22 @@ class MongoTestSuite(TestSuite):
                            dependencies=['exists_comparison_member_of'],
                            required_context=['saml', 'comparison_values']),
 
+            # Email and Name ID comparison tests
+            TestDefinition("exists_comparison_email", MongoTestSuite.verify_email_comparison_exists,
+                           required_context=['comparison_values']),
+            TestDefinition("compare_email_name_id", MongoTestSuite.verify_name_id,
+                           dependencies=['regex_name_id', 'exists_comparison_email'],
+                           required_context=['saml', 'comparison_values']),
+
             # Federated domain tests
             TestDefinition("exists_comparison_domain", MongoTestSuite.verify_domain_comparison_exists,
                            required_context=['comparison_values']),
-            TestDefinition("compare_domain_email", MongoTestSuite.verify_domain_in_email,
-                           dependencies=['regex_email', 'exists_comparison_domain'],
-                           required_context=['saml', 'comparison_values']),
             TestDefinition("compare_domain_comparison_email", MongoTestSuite.verify_domain_in_comparison_email,
                            dependencies=['exists_comparison_email', 'exists_comparison_domain'],
                            required_context=['comparison_values']),
             TestDefinition("compare_domain_name_id", MongoTestSuite.verify_domain_in_name_id,
                            dependencies=['regex_name_id', 'exists_comparison_domain'],
                            required_context=['saml', 'comparison_values']),
-
-            # Email and Name ID comparison tests
-            TestDefinition("compare_email_name_id", MongoTestSuite.verify_name_id,
-                           dependencies=['regex_name_id', 'exists_comparison_email'],
-                           required_context=['saml', 'comparison_values']),
-            TestDefinition("match_name_id_email_in_saml", MongoTestSuite.verify_name_id_and_email_are_the_same,
-                           dependencies=['regex_email', 'regex_name_id'],
-                           required_context=['saml']),
 
             # Issuer URI tests
             TestDefinition("exists_issuer", MongoTestSuite.verify_issuer_exists,
@@ -630,6 +404,19 @@ class MongoTestSuite(TestSuite):
             TestDefinition("match_encryption", MongoTestSuite.verify_encryption_algorithm,
                            dependencies=['exists_comparison_encryption'],
                            required_context=['saml', 'comparison_values']),
+            
+            # Certificate tests
+            TestDefinition("exists_certificate", MongoTestSuite.verify_certificate_exists,
+                           required_context=['certificate']),
+            TestDefinition("certificate_not_expired", MongoTestSuite.verify_certificate_not_expired,
+                           dependencies=['exists_certificate'],
+                           required_context=['certificate']),
+            TestDefinition("exists_comparison_cert_date", MongoTestSuite.verify_certificate_expiry_comparison_exists,
+                           dependencies=['certificate_not_expired'],
+                           required_context=['comparison_values']),
+            TestDefinition("match_certificate_expiry", MongoTestSuite.verify_certificate_expiry,
+                           dependencies=['exists_comparison_cert_date'],
+                           required_context=['certificate', 'comparison_values']),
         ]
         return tests
 
@@ -684,7 +471,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) True if a comparison value exists, False otherwise
         """
-        return context.get('comparison_values').get_value('issuer') is not None
+        return context.get('comparison_values').get_parsed_value('issuer') is not None
 
     @staticmethod
     def verify_issuer(context):
@@ -697,7 +484,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) True if they match, False otherwise
         """
-        return context.get('saml').get_issuer_uri() == context.get('comparison_values').get_value('issuer')
+        return context.get('saml').get_issuer_uri() == context.get('comparison_values').get_parsed_value('issuer')
 
     @staticmethod
     def verify_issuer_pattern(context):
@@ -710,7 +497,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) True if matches the regex, False otherwise
         """
-        return MongoTestSuite._matches_regex(VALIDATION_REGEX_BY_ATTRIB['issuer'],
+        return MongoTestSuite._matches_regex(UserInputValidator().get_validation_regex('issuer'),
                                              context.get('saml').get_issuer_uri())
 
     # Audience URL tests
@@ -738,7 +525,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) True if a comparison value exists, False otherwise
         """
-        return context.get('comparison_values').get_value('audience') is not None
+        return context.get('comparison_values').get_parsed_value('audience') is not None
 
     @staticmethod
     def verify_audience_url(context):
@@ -752,7 +539,7 @@ class MongoTestSuite(TestSuite):
             (bool) True if they match, False otherwise
         """
         return context.get('saml').get_audience_url() == \
-               context.get('comparison_values').get_value('audience')
+               context.get('comparison_values').get_parsed_value('audience')
 
     @staticmethod
     def verify_audience_url_pattern(context):
@@ -765,7 +552,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) True if matches the regex, False otherwise
         """
-        return MongoTestSuite._matches_regex(VALIDATION_REGEX_BY_ATTRIB['audience'],
+        return MongoTestSuite._matches_regex(UserInputValidator().get_validation_regex('audience'),
                                              context.get('saml').get_audience_url())
 
     # Assertion Consumer Service URL tests
@@ -793,7 +580,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) True if a comparison value exists, False otherwise
         """
-        return context.get('comparison_values').get_value('acs') is not None
+        return context.get('comparison_values').get_parsed_value('acs') is not None
 
     @staticmethod
     def verify_assertion_consumer_service_url(context):
@@ -807,7 +594,7 @@ class MongoTestSuite(TestSuite):
             (bool) True if they match, False otherwise
         """
         return context.get('saml').get_assertion_consumer_service_url() == \
-               context.get('comparison_values').get_value('acs')
+               context.get('comparison_values').get_parsed_value('acs')
 
     @staticmethod
     def verify_assertion_consumer_service_url_pattern(context):
@@ -820,7 +607,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) True if matches the regex, False otherwise
         """
-        return MongoTestSuite._matches_regex(VALIDATION_REGEX_BY_ATTRIB['acs'],
+        return MongoTestSuite._matches_regex(UserInputValidator().get_validation_regex('acs'),
                                              context.get('saml').get_assertion_consumer_service_url())
 
     # Encryption algorithm tests
@@ -848,7 +635,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) True if a comparison value exists, False otherwise
         """
-        return context.get('comparison_values').get_value('encryption') is not None
+        return context.get('comparison_values').get_parsed_value('encryption') is not None
 
     @staticmethod
     def verify_encryption_algorithm(context):
@@ -864,7 +651,7 @@ class MongoTestSuite(TestSuite):
 
         # expected encryption algorithm format expected to be "SHA1" or "SHA256"
         return context.get('saml').get_encryption_algorithm() == \
-               context.get('comparison_values').get_value('encryption')
+               context.get('comparison_values').get_parsed_value('encryption')
 
     @staticmethod
     def verify_encryption_algorithm_pattern(context):
@@ -877,7 +664,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) True if matches the regex, False otherwise
         """
-        return MongoTestSuite._matches_regex(VALIDATION_REGEX_BY_ATTRIB['encryption'],
+        return MongoTestSuite._matches_regex(UserInputValidator().get_validation_regex('encryption'),
                                              context.get('saml').get_encryption_algorithm())
 
     # Name ID and format tests
@@ -893,7 +680,7 @@ class MongoTestSuite(TestSuite):
             (bool) True if they match, False otherwise
         """
         return context.get('saml').get_subject_name_id().lower() == \
-               context.get('comparison_values').get_value('email').lower()
+               context.get('comparison_values').get_parsed_value('email').lower()
 
     @staticmethod
     def verify_name_id_exists(context):
@@ -919,7 +706,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) True if matches the regex, False otherwise
         """
-        return MongoTestSuite._matches_regex(EMAIL_REGEX_MATCH,
+        return MongoTestSuite._matches_regex(UserInputValidator().get_validation_regex('email'),
                                              context.get('saml').get_subject_name_id())
 
     @staticmethod
@@ -974,7 +761,7 @@ class MongoTestSuite(TestSuite):
             (bool) true if matches, false otherwise
         """
         return MongoTestSuite._matches_regex(
-            VALIDATION_REGEX_BY_ATTRIB['firstName'],
+            UserInputValidator().get_validation_regex('firstName'),
             context.get('saml').get_attributes().get('firstName')
         )
 
@@ -986,7 +773,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) true if comparison value exists, false otherwise
         """
-        return context.get('comparison_values').get_value('firstName') is not None
+        return context.get('comparison_values').get_parsed_value('firstName') is not None
 
     @staticmethod
     def verify_first_name(context):
@@ -996,7 +783,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) true if matches, false otherwise
         """
-        return context.get('comparison_values').get_value('firstName').lower() == \
+        return context.get('comparison_values').get_parsed_value('firstName').lower() == \
                context.get('saml').get_attributes().get('firstName').lower()
 
     @staticmethod
@@ -1018,7 +805,7 @@ class MongoTestSuite(TestSuite):
             (bool) true if matches, false otherwise
         """
         return MongoTestSuite._matches_regex(
-            VALIDATION_REGEX_BY_ATTRIB['lastName'],
+            UserInputValidator().get_validation_regex('lastName'),
             context.get('saml').get_attributes().get('lastName')
         )
 
@@ -1030,7 +817,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) true if comparison value exists, false otherwise
         """
-        return context.get('comparison_values').get_value('lastName') is not None
+        return context.get('comparison_values').get_parsed_value('lastName') is not None
 
     @staticmethod
     def verify_last_name(context):
@@ -1040,52 +827,18 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) true if matches, false otherwise
         """
-        return context.get('comparison_values').get_value('lastName').lower() == \
+        return context.get('comparison_values').get_parsed_value('lastName').lower() == \
                context.get('saml').get_attributes().get('lastName').lower()
-
-    @staticmethod
-    def verify_email_exists(context):
-        """
-        Check if SAML response has 'email' claims attribute
-
-        Returns:
-            (bool) true if attribute is in SAML response, false otherwise
-        """
-        return 'email' in (context.get('saml').get_attributes() or dict())
-
-    @staticmethod
-    def verify_email_pattern(context):
-        """
-        Check if 'email' claims attribute matches regex pattern
-
-        Returns:
-            (bool) true if matches, false otherwise
-        """
-        return MongoTestSuite._matches_regex(
-            VALIDATION_REGEX_BY_ATTRIB['email'],
-            context.get('saml').get_attributes().get('email')
-        )
 
     @staticmethod
     def verify_email_comparison_exists(context):
         """
-        Check if 'email' claims attribute has a comparison value entered
+        Check if Name ID (email/username) has a comparison value entered
 
         Returns:
             (bool) true if comparison value exists, false otherwise
         """
-        return context.get('comparison_values').get_value('email') is not None
-
-    @staticmethod
-    def verify_email(context):
-        """
-        Check if 'email' claims attribute matches comparison value entered (case-insensitive)
-
-        Returns:
-            (bool) true if matches, false otherwise
-        """
-        return context.get('comparison_values').get_value('email').lower() == \
-               context.get('saml').get_attributes().get('email').lower()
+        return context.get('comparison_values').get_parsed_value('email') is not None
 
     @staticmethod
     def verify_member_of_exists(context):
@@ -1117,7 +870,7 @@ class MongoTestSuite(TestSuite):
         """
         return all(
             MongoTestSuite._matches_regex(
-                VALIDATION_REGEX_BY_ATTRIB['memberOf'], value
+                UserInputValidator().get_validation_regex('memberOf'), value
             ) for value in context.get('saml').get_attributes().get('memberOf', [])
         )
 
@@ -1130,7 +883,18 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) true if attribute exists and customer expects it, false otherwise
         """
-        return not context.get('comparison_values').get_value('role_mapping_expected', False)
+        return not context.get('comparison_values').get_parsed_value('role_mapping_expected', False)
+
+    @staticmethod
+    def verify_member_of_is_not_duplicated(context):
+        """
+        Check if 'memberOf' claims attribute is in SAML response if customer
+        expects to do role mapping.
+
+        Returns:
+            (bool) true if attribute exists and customer expects it, false otherwise
+        """
+        return 'memberOf' not in context.get('saml').get_duplicate_attribute_names()
 
     @staticmethod
     def verify_member_of_comparison_exists(context):
@@ -1140,7 +904,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) true if comparison value exists, false otherwise
         """
-        return context.get('comparison_values').get_value('memberOf') is not None
+        return context.get('comparison_values').get_parsed_value('memberOf') is not None
 
     @staticmethod
     def verify_member_of(context):
@@ -1153,26 +917,10 @@ class MongoTestSuite(TestSuite):
         member_of_groups = context.get('saml').get_attributes().get('memberOf', [])
         return all(
             group in member_of_groups
-            for group in context.get('comparison_values').get_value('memberOf', [])
+            for group in context.get('comparison_values').get_parsed_value('memberOf', [])
         )
 
     # Name ID, email, and domain tests
-    @staticmethod
-    def verify_name_id_and_email_are_the_same(context):
-        """
-        Check if Name ID and email values from SAML response match (case-insensitive). This is not
-        a hard requirement, but is typical and a mismatch may indicate an incorrect
-        configuration.
-
-        Returns:
-            (bool) True if both values are present in the SAML response and match
-        """
-        # Not a requirement, but may indicate that a setting is incorrect
-        name_id = context.get('saml').get_subject_name_id()
-        email = context.get('saml').get_attributes().get('email')
-
-        return name_id.lower() == email.lower()
-
     @staticmethod
     def verify_domain_comparison_exists(context):
         """
@@ -1181,7 +929,7 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) True if a comparison exists, False otherwise
         """
-        return context.get('comparison_values').get_value('domains') is not None
+        return context.get('comparison_values').get_parsed_value('domains') is not None
 
     @staticmethod
     def verify_domain_in_name_id(context):
@@ -1192,18 +940,7 @@ class MongoTestSuite(TestSuite):
             (bool) True if Name ID ends with one of the domains, False otherwise
         """
         return any(context.get('saml').get_subject_name_id().lower().endswith('@' + domain)
-                   for domain in context.get('comparison_values').get_value('domains'))
-
-    @staticmethod
-    def verify_domain_in_email(context):
-        """
-        Checks if email attribute contains one of the federated domains specified
-
-        Returns:
-            (bool) True if email contains ends with one of the domains, False otherwise
-        """
-        return any(context.get('saml').get_attributes().get('email').lower().endswith('@' + domain)
-                   for domain in context.get('comparison_values').get_value('domains'))
+                   for domain in context.get('comparison_values').get_parsed_value('domains'))
 
     @staticmethod
     def verify_domain_in_comparison_email(context):
@@ -1214,8 +951,50 @@ class MongoTestSuite(TestSuite):
         Returns:
             (bool) True if email contains ends with one of the domains, False otherwise
         """
-        return any(context.get('comparison_values').get_value('email').lower().endswith('@' + domain)
-                   for domain in context.get('comparison_values').get_value('domains'))
+        return any(context.get('comparison_values').get_parsed_value('email').lower().endswith('@' + domain)
+                   for domain in context.get('comparison_values').get_parsed_value('domains'))
+
+    @staticmethod
+    def verify_certificate_exists(context):
+        """
+        Checks if the SAML signing certificate is included in the SAML response and that it generated
+        a valid Certificate object.
+
+        Returns:
+            (bool) True if a valid Certificate object exists, False otherwise
+        """
+        return context.get('certificate') is not None
+
+    @staticmethod
+    def verify_certificate_not_expired(context):
+        """
+        Checks if the SAML signing certificate has an expiration date in the future (not including today)
+
+        Returns:
+            (bool) True if certificate expires in the future, False otherwise
+        """
+        return context.get('certificate').get_expiration_date() > datetime.now().date()
+
+    @staticmethod
+    def verify_certificate_expiry_comparison_exists(context):
+        """
+        Checks if the user specified a date to compare against the SAML response certificate expiration
+        
+        Returns:
+            (bool) True if specified, False otherwise
+        """
+        return context.get('comparison_values').get_parsed_value('cert_expiration') is not None
+    
+    @staticmethod
+    def verify_certificate_expiry(context):
+        """
+        Checks if the specified expiration date matches the SAML response certificate expiration
+        
+        Returns:
+            (bool) True if they are the same, False otherwise
+        """
+        return context.get('comparison_values').get_parsed_value('cert_expiration') == \
+            context.get('certificate').get_expiration_date()
 
 
 class ValidationReport:
@@ -1224,15 +1003,20 @@ class ValidationReport:
 
     All future tests that need reporting should be added in this class.
     """
-    def __init__(self, saml, comparison_values):
+    def __init__(self, saml, certificate, comparison_values):
         """
         Build reporter object.
 
         Args:
             saml (BaseSamlParser): parsed SAML data
+            certificate (`Certificate` or `None`): SAML signing certificate
             comparison_values (MongoFederationConfig): comparison data
         """
+        # TODO: We should probably overhaul this class so that it doesn't require
+        #       valid data, meaning that it should skip building messages that depend
+        #       on having data that isn't available (like the certificate).
         self._saml = saml
+        self._certificate = certificate
         self._comparison_values = comparison_values
         self._messages = None
         self._compile_messages()
@@ -1274,7 +1058,7 @@ class ValidationReport:
         return f"The required '{attribute_name}' claim attribute does not match " + \
                "the value entered for comparison." + \
                f"\nSAML value: {self._saml.get_attributes().get(attribute_name)}" + \
-               f"\nSpecified comparison value: {self._comparison_values.get_value(attribute_name)}" + \
+               f"\nSpecified comparison value: {self._comparison_values.get_parsed_value(attribute_name)}" + \
                "\n\nGenerally, this means that the identity provider configuration needs\n" + \
                "to be reconfigured to match the expected values"
 
@@ -1298,7 +1082,7 @@ class ValidationReport:
 
     def _compile_messages(self):
         """
-        Generates messages for failed tests based on provided SAML and comparison data.
+        Generates messages for failed tests based on provided SAML, certificate, and comparison data.
 
         Any future tests that require a report be generated should they fail should have
         an entry added to the `messages` dict with the test name as the key.
@@ -1317,6 +1101,20 @@ class ValidationReport:
             'regex_name_id':
                 f"The Name ID does not appear to be an email address.\n"
                 f"Name ID: {self._saml.get_subject_name_id()}",
+            'compare_email_name_id':
+                "The Name ID does not match the provided email value:\n" +
+                f"Name ID value: {self._saml.get_subject_name_id()}\n" +
+                f"Specified email value: {self._comparison_values.get_parsed_value('email')}" +
+                "\n\nThe Name ID is the value that Atlas expects as the user's\n" +
+                "username, and if this differs from the a current user's username,\n" +
+                "then the identity provider is likely not sending the correct value,\n" +
+                "possibly because it is configured to send the wrong user attribute.\n" +
+                "For example, it may be sending the UPN (user principal name) instead\n" +
+                "of the email address. This is more common with Azure AD users, because\n" +
+                "the documentation indicates that customers should use 'user.userprincipalname'\n" +
+                "as the source attribute for the Name ID, even though there is a caveat that\n" +
+                "states the customer should use the source attribute that contains the user's\n" +
+                "username/email address. This could be contained in 'user.mail' instead.",
 
             # Name ID Format tests
             'exists_name_id_format':
@@ -1339,9 +1137,6 @@ class ValidationReport:
             'exists_last_name': self._get_claim_attribute_exist('lastName'),
             'regex_last_name': self._get_claim_attribute_regex('lastName'),
             'compare_last_name': self._get_claim_attribute_mismatch("lastName"),
-            'exists_email': self._get_claim_attribute_exist('email'),
-            'regex_email': self._get_claim_attribute_regex('email'),
-            'compare_email': self._get_claim_attribute_mismatch("email"),
 
             # Role mapping tests
             'member_of_is_expected':
@@ -1354,53 +1149,45 @@ class ValidationReport:
                 f"The optional 'memberOf' claim attribute is missing one or more values entered for comparison." + \
                 f"\nSAML value:" + self._print_a_list("\n - {}", self._saml.get_attributes().get('memberOf', [])) + \
                 f"\nSpecified comparison value:" + self._print_a_list(
-                    "\n - {}", self._comparison_values.get_value('memberOf', [])) + \
+                    "\n - {}", self._comparison_values.get_parsed_value('memberOf', [])) + \
                 "\n\nGenerally, this means that the user's account in the customer Active Directory\n" + \
                 "needs to be added to the correct group.",
+            'not_duplicate_member_of':
+                "The 'memberOf' claim attribute is duplicated in the SAML response instead of being\n"
+                "sent as an attribute with multiple values inside a single claim. For example:\n\n"
+                "DUPLICATED:\n"
+                "<Attribute Name=\"memberOf\">\n"
+                "    <AttributeValue>Value A</AttributeValue>\n"
+                "</Attribute>\n"
+                "<Attribute Name=\"memberOf\">\n"
+                "    <AttributeValue>Value B</AttributeValue>\n"
+                "</Attribute>\n\n"
+                "MULTI-VALUED:\n"
+                "<Attribute Name=\"memberOf\">\n"
+                "    <AttributeValue>Value A</AttributeValue>\n"
+                "    <AttributeValue>Value B</AttributeValue>\n"
+                "</Attribute>\n\n"
+                "This is common with customers who use KeyCloak as their identity provider.\n"
+                "Advise the customer to convert duplicated attributes into multi-valued attributes.\n"
+                "For KeyCloak, this can be done by setting 'Single Role Attribute: ON'.",
 
             # Federated domain tests
-            'compare_domain_email':
-                "The 'email' attribute does not contain one of the federated domains specified:\n" +
-                f"SAML 'email' attribute value: {self._saml.get_subject_name_id()}\n" +
-                f"Specified valid domains:" +
-                self._print_a_list("\n - {}", self._comparison_values.get_value('domains', [])) +
-                "\n\nIf the 'email' attribute does not contain a verified domain name, it may be because\n" +
-                "the source Active Directory field does not contain the user's e-mail address.\n" +
-                "The source field may contain an internal username or other value instead.\n" +
-                "This is not necessarily an error, but may indicate there is a misconfiguration.\n" +
-                "The value in Name ID will be the user's login username and the value in the\n" +
-                "email attribute will be the address where the user receives email messages.\n" +
-                "So only the Name ID must contain the domain.",
             'compare_domain_comparison_email':
-                "The specified comparison e-mail value does not contain\n" +
+                "The specified comparison email value does not contain\n" +
                 "one of the federated domains specified:\n" +
-                f"Specified e-mail value: {self._comparison_values.get_value('email')}\n" +
+                f"Specified email value: {self._comparison_values.get_parsed_value('email')}\n" +
                 f"Specified valid domains:" +
-                self._print_a_list("\n - {}", self._comparison_values.get_value('domains', [])) +
-                "\n\nIf the e-mail specified is the user's MongoDB username, then the Atlas\n" +
+                self._print_a_list("\n - {}", self._comparison_values.get_parsed_value('domains', [])) +
+                "\n\nIf the email specified is the user's MongoDB username, then the Atlas\n" +
                 "identity provider configuration likely has the incorrect domain(s) verified.",
             'compare_domain_name_id':
                 "The Name ID does not contain one of the federated domains specified:\n" +
                 f"Name ID value: {self._saml.get_subject_name_id()}\n" +
                 f"Specified valid domains:" +
-                self._print_a_list("\n - {}", self._comparison_values.get_value('domains', [])) +
+                self._print_a_list("\n - {}", self._comparison_values.get_parsed_value('domains', [])) +
                 "\n\nIf the Name ID does not contain a verified domain name, it may be because\n" +
-                "the source Active Directory field does not contain the user's e-mail address.\n" +
+                "the source Active Directory field does not contain the user's email address.\n" +
                 "The source field may contain an internal username or other value instead.",
-
-            # Email and Name ID tests
-            'compare_email_name_id':
-                "The Name ID does not match the provided e-mail value:\n" +
-                f"Name ID value: {self._saml.get_subject_name_id()}\n" +
-                f"Specified email value: {self._comparison_values.get_value('email')}" +
-                "\n\nThis is not necessarily an error, but may indicate there is a misconfiguration.\n" +
-                "The value in Name ID will be the user's login username and the value in the\n" +
-                "email attribute will be the address where the user receives email messages.",
-            'match_name_id_email_in_saml':
-                "The Name ID and email attributes are not the same. This is not\n" +
-                "necessarily an error, but may indicate there is a misconfiguration.\n" +
-                "The value in Name ID will be the user's login username and the value in the\n" +
-                "email attribute will be the address where the user receives email messages.",
 
             # Issuer URI tests
             'exists_issuer':
@@ -1412,7 +1199,7 @@ class ValidationReport:
             'match_issuer':
                 "The Issuer URI in the SAML response does not match the specified comparison value:\n" +
                 f"SAML value: {self._saml.get_issuer_uri()}\n" +
-                f"Specified comparison value: {self._comparison_values.get_value('issuer')}" +
+                f"Specified comparison value: {self._comparison_values.get_parsed_value('issuer')}" +
                 "\n\nGenerally, this means that the Atlas configuration needs " +
                 "to be set to match the SAML value",
 
@@ -1426,7 +1213,7 @@ class ValidationReport:
             'match_audience':
                 "The Audience URL in the SAML response does not match the specified comparison value:\n" +
                 f"SAML value: {self._saml.get_audience_url()}\n" +
-                f"Specified comparison value: {self._comparison_values.get_value('audience')}" +
+                f"Specified comparison value: {self._comparison_values.get_parsed_value('audience')}" +
                 "\n\nGenerally, this means that the Atlas configuration needs " +
                 "to be set to match the SAML value",
 
@@ -1441,7 +1228,7 @@ class ValidationReport:
                 "The Assertion Consumer Service URL in the SAML response does not match the " +
                 "specified comparison value:\n" +
                 f"SAML value: {self._saml.get_assertion_consumer_service_url()}\n" +
-                f"Specified comparison value: {self._comparison_values.get_value('acs')}" +
+                f"Specified comparison value: {self._comparison_values.get_parsed_value('acs')}" +
                 "\n\nThis means that the identity provider configuration needs\n" +
                 "to be reconfigured to match the expected value",
 
@@ -1457,9 +1244,28 @@ class ValidationReport:
                 "match the specified comparison value:\n" +
                 f"SAML value: {self._saml.get_encryption_algorithm()}\n" +
                 f"Specified comparison value: " +
-                f"{self._comparison_values.get_value('encryption')}" +
+                f"{self._comparison_values.get_parsed_value('encryption')}" +
                 "\n\nGenerally, this means that the Atlas configuration needs " +
-                "to be set to match the SAML value"
+                "to be set to match the SAML value",
         }
+
+        if self._certificate is not None:
+            messages.update({
+                # Certificate tests
+                'certificate_not_expired': 
+                    f"The SAML signing certificate included with the SAML response appears expired\n" +
+                    f"or it expires today.\n" +
+                    f"Expiration date (MM/DD/YYYY): {self._certificate.get_expiration_date():%m/%d/%Y}\n" +
+                    "\nGenerally, this means that the identity provider needs to be updated with a\n" +
+                    "valid certificate pair, and that the public certificate of the pair must be re-uploaded to Atlas.",
+                'match_certificate_expiry':
+                    f"The expiration of the SAML signing certificate included with the SAML response\n" +
+                    f"does not match the specified expiration date.\n" +
+                    f"SAML value (MM/DD/YYYY): {self._certificate.get_expiration_date():%m/%d/%Y}\n" +
+                    f"Specified comparison value (MM/DD/YYYY): " +
+                    f"{self._comparison_values.get_parsed_value('cert_expiration') or datetime.now():%m/%d/%Y}" +
+                    "\n\nThis is a likely indicator that the SAML signing certiticate uploaded to Atlas is not the\n" +
+                    "correct certificate. Please direct the customer to upload the correct public certificate.",
+            })
 
         self._messages = messages
