@@ -125,7 +125,7 @@ class OLISamlParser(OneLogin_Saml2_Response):
         Returns:
             (`list` of `lxml.etree.Element`) requested nodes
         """
-        return self._OneLogin_Saml2_Response__query_assertion(path)
+        return self._query_assertion(path)
 
     def query(self, path):
         """
@@ -137,7 +137,7 @@ class OLISamlParser(OneLogin_Saml2_Response):
         Returns:
             (`list` of `lxml.etree.Element`) requested nodes
         """
-        return self._OneLogin_Saml2_Response__query(path)
+        return self._query(path)
 
 
 class CustomXMLParser(OneLogin_Saml2_XML):
