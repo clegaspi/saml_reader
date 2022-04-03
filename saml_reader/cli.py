@@ -366,7 +366,7 @@ def prompt_for_comparison_values(output_stream=print, input_stream=input):
         MongoComparisonValue(
             'lastName', "Customer Last Name:", multi_value=False),
         MongoComparisonValue(
-            'email', "Customer Email Address:", multi_value=False),
+            'email', "Customer Email Address/Username:", multi_value=False),
         MongoComparisonValue(
             'acs', "MongoDB Assertion Consumer Service URL:", multi_value=False),
         MongoComparisonValue(
