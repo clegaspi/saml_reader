@@ -19,13 +19,13 @@ setup(
       install_requires=[
             'pyperclip',
             'haralyzer',
-            'python3-saml==1.14.0',
+            'python3-saml',
             'cryptography',
             'networkx',
-            'lxml',     # This should be installed as part of python3-saml
-            'defusedxml==0.6.0',      # This should be installed as part of python3-saml
+            'lxml<4.7.1',     # This should be installed as part of python3-saml
+            'defusedxml',      # This should be installed as part of python3-saml
             'dash',      # For web interface
             'Flask==1.1.2',
-            'dash-extensions'
+            'dash-extensions==0.0.71'
       ]
 )
