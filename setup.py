@@ -22,10 +22,9 @@ setup(
             'python3-saml',
             'cryptography',
             'networkx',
-            'lxml<4.7.1',     # This should be installed as part of python3-saml
+            'lxml',     # This should be installed as part of python3-saml
             'defusedxml',      # This should be installed as part of python3-saml
-            'dash',      # For web interface
-            'Flask==1.1.2',
-            'dash-extensions==0.0.71'
+            'dash>=2.6,<2.7',      # For web interface
+            'dash-extensions>=0.1,<0.2'
       ]
 )
