@@ -1,4 +1,5 @@
 import argparse
+import logging
 import sys
 import webbrowser
 from threading import Timer
@@ -53,6 +54,11 @@ def web_cli(cl_args):
     else:
         print(f"Open browser to {web_address} once the server starts.")
     print("NOTE: Use Ctrl+C to stop the web server when finished. Closing the webpage will not stop the server!\n")
+
+    # If the app was started from the CLI, suppress Dash server output
+    log = logging.getLogger('werkzeug')
+    log.setLevel(logging.ERROR)
+    
     run_web_app(host=parsed_args.host, port=parsed_args.port)
     
 
