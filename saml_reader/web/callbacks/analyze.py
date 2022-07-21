@@ -89,7 +89,7 @@ def submit_analysis(
     Returns:
         basestring: output for the results box
     """
-    if n_clicks is None or saml_data == "":
+    if n_clicks is None or not saml_data:
         raise PreventUpdate
 
     comparison_data = {
