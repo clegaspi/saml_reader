@@ -53,7 +53,7 @@ For Windows, installing the `xmlsec` package from PyPI already has these depende
 
 To install SAML Reader from PyPI:
 
-1. If you wish to run this package in an environment such as [virtualenv](https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/) or [Anaconda](https://docs.conda.io/projects/conda/en/latest/user-guide/getting-started.html), create the environment of your choice with Python 3.6+ and activate it. I always recommend installing in an environment, but if you wish to install the package globally, skip to step 2.
+1. It is **highly recommended** that this package be run in a Python virtual environment such as [virtualenv](https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/) or [Anaconda](https://docs.conda.io/projects/conda/en/latest/user-guide/getting-started.html). Please follow one of the previous links to learn how to create a Python environment of your choice. Create the environment with Python 3.9+ and activate it. I do not recommend installing this directly into your system's global environment. There is just so much that can go wrong.
 2. Install the package from PyPI:
 ```bash
 pip install saml_reader
@@ -65,7 +65,7 @@ pip install saml_reader
 If you wish to install from the GitHub source:
 
 1. Clone the repository locally with `git clone`.
-2. Ideally, create an environment such as [virtualenv](https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/) or [Anaconda](https://docs.conda.io/projects/conda/en/latest/user-guide/getting-started.html), create the environment of your choice with Python 3.6+ and activate it.
+2. Create a virtual environment such as [virtualenv](https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/) or [Anaconda](https://docs.conda.io/projects/conda/en/latest/user-guide/getting-started.html) using Python 3.9+ and activate it.
 3. In the root directory of the repository, run `pip install .` to install the package. If you are planning to make changes to the package, run `pip install -e .` instead to install the package in editable mode.
 4. Run the command line interface by running `saml_reader` with options specified below.
 
@@ -108,12 +108,13 @@ take:
 - `--host <host>`: this lets you specify host/IP address where the web app is listening. Default is `localhost`
 - `--port <port>`: this lets you specify port where the web app is listening. Default is `8050`
 - `--no-open-browser`: suppresses opening the web browser automatically
+- `--keep-alive`: keeps the web server running indefinitely, or until killed with Ctrl+C. The server will time out after 30 minutes otherwise.
 - `--version`: returns the installed version and exits
 - `--help`: displays the help menu
 
 When you navigate to the web app, the `Analyze SAML` link is the only one that currently has any functionality. You enter the SAML data on the left side and specify any comparison values you wish to include on the right side. Once you do that, click `Analyze` and the output will appear.
 
-When you are done using the web app, please be sure to close the web server by pressing Ctrl+C in the terminal where you ran the web app.
+When you are done using the web app, please be sure to close the web server by pressing Ctrl+C in the terminal where you ran the web app. If you did not specify `--keep-alive`, the server will automatically terminate after 30 minutes.
 
 ---
 
