@@ -108,12 +108,13 @@ take:
 - `--host <host>`: this lets you specify host/IP address where the web app is listening. Default is `localhost`
 - `--port <port>`: this lets you specify port where the web app is listening. Default is `8050`
 - `--no-open-browser`: suppresses opening the web browser automatically
+- `--keep-alive`: keeps the web server running indefinitely, or until killed with Ctrl+C. The server will time out after 30 minutes otherwise.
 - `--version`: returns the installed version and exits
 - `--help`: displays the help menu
 
 When you navigate to the web app, the `Analyze SAML` link is the only one that currently has any functionality. You enter the SAML data on the left side and specify any comparison values you wish to include on the right side. Once you do that, click `Analyze` and the output will appear.
 
-When you are done using the web app, please be sure to close the web server by pressing Ctrl+C in the terminal where you ran the web app.
+When you are done using the web app, please be sure to close the web server by pressing Ctrl+C in the terminal where you ran the web app. If you did not specify `--keep-alive`, the server will automatically terminate after 30 minutes.
 
 ---
 
