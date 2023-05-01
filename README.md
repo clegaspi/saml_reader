@@ -98,7 +98,7 @@ To pull down the latest version:
 
 ### Workaround for Apple M Chips
 
-There is presently an issue with `libxmlsec1` versions => 1.3.0 and Apple Silicon which results in a required dependency `lxml` when `cpython` attempts to compile it, resulting in an ungraceful failure. The following workaround has been tested successfully with a Macbook Pro M1 Pro and Python 3.10+. This involves downgrading `xmlsec` to a known working version (`1.2.37`).
+There is presently an issue with `libxmlsec1` versions => `1.3.0` and Apple Silicon which results in an ungraceful failure in a required dependency `lxml` when cpython attempts to compile it. The following workaround has been tested successfully with a Macbook Pro M1 Pro and Python 3.10+. This involves downgrading `xmlsec` to a known working version (`1.2.37`).
 
 1. Install the required `xmlsec` dependencies above. 
 2. Clone the repository locally with `git clone`.
