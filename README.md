@@ -16,6 +16,7 @@ for it. :)
     - [Dependencies for `xmlsec`](#dependencies-for-xmlsec)
     - [Installing from PyPI](#installing-from-pypi)
     - [Installing from GitHub source](#installing-from-github-source)
+    - [Workaround for Apple M Chips](#apple-silicon-workaround)
   - [Updating the package](#updating-the-package)
     - [From PyPI](#from-pypi)
     - [From GitHub source](#from-github-source)
@@ -48,6 +49,8 @@ brew install libxml2 libxmlsec1 pkg-config
 ```
 
 For Windows, installing the `xmlsec` package from PyPI already has these dependencies pre-built into the installation process for the package, so there should be no need to install them separately.
+
+For Apple M Chips a workaround will be outlined below.
 
 ### Installing from PyPI
 
@@ -92,6 +95,21 @@ To pull down the latest version:
 3. If you installed in editable mode, you should be good to go. If you did not install in editable mode, run `pip install .` in the root directory of the repository.
 
 ---
+
+### Workaround for Apple M Chips
+
+There is presently an issue with `libxmlsec1` versions => 1.3.0 and Apple Silicon which results in a required dependency `lxml` when `cpython` attempts to compile it, resulting in an ungraceful failure. The following workaround has been tested successfully with a Macbook Pro M1 Pro and Python 3.10+. This involves downgrading `xmlsec` to a known working version (`1.2.37`).
+
+1. Install the required `xmlsec` dependencies above. 
+2. Clone the repository locally with `git clone`.
+3. Create a virtual environment such as [virtualenv](https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/) or [Anaconda](https://docs.conda.io/projects/conda/en/latest/user-guide/getting-started.html) using Python 3.9+ and activate it.
+4. `brew edit libxmlsec1` and replace the entire contents of the brew package with the following [gist](https://raw.githubusercontent.com/Homebrew/homebrew-core/7f35e6ede954326a10949891af2dba47bbe1fc17/Formula/libxmlsec1.rb)
+5. `brew unlink libxmlsec` and `brew uninstall libxmlsec1`
+6. Force a clean installation with `brew install /opt/homebrew/Library/Taps/homebrew/homebrew-core/Formula/libxmlsec1.rb`
+7. Trigger a clean installation of the pip package with `pip install . --no-cache-dir`
+
+Thank you to @josh-allan for identifying this workaround.
+
 
 ## Running the web app
 
