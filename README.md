@@ -104,9 +104,12 @@ There is presently an issue with `libxmlsec1` versions => `1.3.0` and Apple Sili
 2. Clone the repository locally with `git clone`.
 3. Create a virtual environment such as [virtualenv](https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/) or [Anaconda](https://docs.conda.io/projects/conda/en/latest/user-guide/getting-started.html) using Python 3.9+ and activate it.
 4. `brew edit libxmlsec1` and replace the entire contents of the brew package with the following [gist](https://raw.githubusercontent.com/Homebrew/homebrew-core/7f35e6ede954326a10949891af2dba47bbe1fc17/Formula/libxmlsec1.rb)
-5. `brew unlink libxmlsec` and `brew uninstall libxmlsec1`
-6. Force a clean installation with `brew install /opt/homebrew/Library/Taps/homebrew/homebrew-core/Formula/libxmlsec1.rb`
-7. Trigger a clean installation of the pip package with `pip install . --no-cache-dir`
+5. `brew unlink libxmlsec1` and `brew uninstall libxmlsec1`
+6. In your shell `rc` file (`.bashrc`, `.zshrc`, etc.), set the environment variable `HOMEBREW_NO_INSTALL_FROM_API` to `1`.
+7. Force a clean installation with `brew install /opt/homebrew/Library/Taps/homebrew/homebrew-core/Formula/libxmlsec1.rb`
+8. Trigger a clean installation of the pip package with `pip install . --no-cache-dir`.
+9. Remove `HOMEBREW_NO_INSTALL_FROM_API` from your shell `rc` file.
+10. (optional) To keep `brew` from upgrading the package, run `brew pin libxmlsec1`.
 
 Thank you to @josh-allan for identifying this workaround.
 
