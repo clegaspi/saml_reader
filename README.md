@@ -56,7 +56,7 @@ For Apple M Chips a workaround will be outlined below.
 
 To install SAML Reader from PyPI:
 
-1. It is **highly recommended** that this package be run in a Python virtual environment such as [virtualenv](https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/) or [Anaconda](https://docs.conda.io/projects/conda/en/latest/user-guide/getting-started.html). Please follow one of the previous links to learn how to create a Python environment of your choice. Create the environment with Python 3.9+ and activate it. I do not recommend installing this directly into your system's global environment. There is just so much that can go wrong.
+1. It is **highly recommended** that this package be run in a Python virtual environment such as [virtualenv](https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/) or [Anaconda](https://docs.conda.io/projects/conda/en/latest/user-guide/getting-started.html). Please follow one of the previous links to learn how to create a Python environment of your choice. Create the environment with Python 3.6-3.10 and activate it. **SAML Reader is not currently compatible with Python 3.11+.** I do not recommend installing this directly into your system's global environment. There is just so much that can go wrong.
 2. Install the package from PyPI:
 ```bash
 pip install saml_reader
