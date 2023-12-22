@@ -66,7 +66,7 @@ To install SAML Reader from PyPI:
 pip install saml_reader
 ```
 
-3. Run the command line interface by running `saml_reader` with options specified below.
+4. Run the command line interface by running `saml_reader` with options specified below.
 
 ### Installing from GitHub source
 
