@@ -3,3 +3,4 @@ saml_reader.egg-info
 .vscode
 dist
 build
+saml_venv
