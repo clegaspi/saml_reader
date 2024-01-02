@@ -1,6 +1,7 @@
 # SAML Reader
 
 ## **IMPORTANT**
+
 Please **DO NOT** add any personally identifiable information (PII) when reporting an issue.
 
 This means **DO NOT** upload any SAML data, even if it is yours. I don't want to be responsible
@@ -34,6 +35,7 @@ for it. :)
   - [Contributing](#contributing)
 
 ## What is this tool?
+
 This tool parses SAML responses, gathering relevant info for diagnosing issues with federated authentication for MongoDB Cloud.
 
 ---
@@ -58,10 +60,12 @@ To install SAML Reader from PyPI:
 
 1. It is **highly recommended** that this package be run in a Python virtual environment such as [virtualenv](https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/) or [Anaconda](https://docs.conda.io/projects/conda/en/latest/user-guide/getting-started.html). Please follow one of the previous links to learn how to create a Python environment of your choice. Create the environment with Python 3.6-3.10 and activate it. **SAML Reader is not currently compatible with Python 3.11+.** I do not recommend installing this directly into your system's global environment. There is just so much that can go wrong.
 2. Install the package from PyPI:
+
 ```bash
 pip install saml_reader
 ```
-3. Run the command line interface by running `saml_reader` with options specified below.
+3. Downgrade Werkzeug to `2.2.2` with `pip install Werkzeug==2.2.2` as the current release version introduces a breaking change and this version negates that change until a later Web Application Framework can be utilised. This is detailed in the Github issues section for [issue 85](https://github.com/clegaspi/saml_reader/issues/85)
+4. Run the command line interface by running `saml_reader` with options specified below.
 
 ### Installing from GitHub source
 
@@ -100,7 +104,7 @@ To pull down the latest version:
 
 There is presently an issue with `libxmlsec1` versions => `1.3.0` and Apple Silicon which results in an ungraceful failure in a required dependency `lxml` when `cpython` attempts to compile it. The following workaround has been tested successfully with a Macbook Pro M1 Pro and Python 3.10+. This involves downgrading `xmlsec` to a known working version (`1.2.37`).
 
-1. Install the required `xmlsec` dependencies above. 
+1. Install the required `xmlsec` dependencies above.
 2. Clone the repository locally with `git clone`.
 3. Create a virtual environment such as [virtualenv](https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/) or [Anaconda](https://docs.conda.io/projects/conda/en/latest/user-guide/getting-started.html) using Python 3.9+ and activate it.
 4. `brew edit libxmlsec1` and replace the entire contents of the brew package with the following [gist](https://raw.githubusercontent.com/Homebrew/homebrew-core/7f35e6ede954326a10949891af2dba47bbe1fc17/Formula/libxmlsec1.rb)
@@ -108,11 +112,11 @@ There is presently an issue with `libxmlsec1` versions => `1.3.0` and Apple Sili
 6. In your shell `rc` file (`.bashrc`, `.zshrc`, etc.), set the environment variable `HOMEBREW_NO_INSTALL_FROM_API` to `1`.
 7. Force a clean installation with `brew install /opt/homebrew/Library/Taps/homebrew/homebrew-core/Formula/libxmlsec1.rb`
 8. Trigger a clean installation of the pip package with `pip install . --no-cache-dir`.
-9. Remove `HOMEBREW_NO_INSTALL_FROM_API` from your shell `rc` file.
-10. (optional) To keep `brew` from upgrading the package, run `brew pin libxmlsec1`.
+9. Downgrade the version of `Werkzeug` from `3.0.1` to `2.2.2` using `pip install Werkzeug==2.2.2`.
+10. Remove `HOMEBREW_NO_INSTALL_FROM_API` from your shell `rc` file.
+11. (optional) To keep `brew` from upgrading the package, run `brew pin libxmlsec1`.
 
 Thank you to @josh-allan for identifying this workaround.
-
 
 ## Running the web app
 
@@ -142,7 +146,7 @@ When you are done using the web app, please be sure to close the web server by p
 ## Running the CLI
 
 This tool can accept a SAML response as properly-formatted XML or
-a base64-encoded string, or it can be extracted directly from a HAR file dump. 
+a base64-encoded string, or it can be extracted directly from a HAR file dump.
 The data can be input from a file, from the system clipboard,
 or from a Unix pipe.
 
@@ -180,7 +184,7 @@ cat base64.txt | saml_reader --type base64
 cat file.har | saml_reader --type har
 ```
 
-You can specify `saml_reader --stdin` but it is not required. 
+You can specify `saml_reader --stdin` but it is not required.
 
 ### Other command line options
 
@@ -190,7 +194,7 @@ that is output by the program.
 
 #### `--summary`
 
-This flag will print a full summary of key parameters pulled directly from the SAML 
+This flag will print a full summary of key parameters pulled directly from the SAML
 response and certificate.
 
 #### `--summary-only`
@@ -214,7 +218,7 @@ Domain(s) associated with IdP:
 1. foo.com
 2. bar.net
 3. mydomain.com
-4. 
+4.
 IdP Issuer URI: Issuer_URI_Here
 Signing Certificate Expiration Date (MM/DD/YYYY): 01/31/2021
 Encryption Algorithm (SHA1 or SHA256): SHA256
@@ -223,6 +227,7 @@ Expected role mapping group names (if unknown, leave blank):
 1. Test Group Name
 2.
 ```
+
 All values will be validated to see if they match expected values for MongoDB Cloud.
 If an attribute does not pass validation, you will be asked to re-enter it or skip it.
 
@@ -242,10 +247,10 @@ comparison values in the format:
   "domains": ["foo.com", "bar.net", "mydomain.com"],
   "role_mapping_expected": "Must be 'Y' or 'N'",
   "memberOf": ["Test Group Name"]
-} 
+}
 ```
 
-Note that `domains` and `memberOf` must be lists. Any value can be omitted or substituted with `null` to be ignored. 
+Note that `domains` and `memberOf` must be lists. Any value can be omitted or substituted with `null` to be ignored.
 An empty string (`""`) or empty list (`[]`) will be interpreted as an invalid value.
 
 ---
