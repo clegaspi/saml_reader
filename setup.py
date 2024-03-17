@@ -19,14 +19,12 @@ setup(
     },
     install_requires=[
         "pyperclip",
-        "Werkzeug",
         "haralyzer",
         "python3-saml",
         "cryptography",
         "networkx",
         "lxml",  # This should be installed as part of python3-saml
         "defusedxml",  # This should be installed as part of python3-saml
-#        "xmlsec==1.3.12",  # Maintain compatibility with libxmlsec1@1.2.37 for Apple Silicon
         "dash",  # For web interface
         "dash-extensions",
     ],
