@@ -75,4 +75,4 @@ class Certificate(object):
         Returns:
             datetime.date: the expiration date for the certificate
         """
-        return self._certificate.not_valid_after.date()
+        return self._certificate.not_valid_after_utc.date()

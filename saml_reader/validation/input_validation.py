@@ -29,14 +29,14 @@ class UserInputValidator:
         self._regex_by_attribute = {
             'firstName': r'^\s*\S+.*$',
             'lastName': r'^\s*\S+.*$',
-            'email': r"\b(?i)([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})\b",
+            'email': r"(?i)\b([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})\b",
             'issuer': r'^\s*\S+.*$',
             'acs': r'^https:\/\/auth\.mongodb\.com\/sso\/saml2\/[a-z0-9A-Z]{20}$',
             'audience': r'^https:\/\/www\.okta\.com\/saml2\/service-provider\/[a-z]{20}$',
-            'encryption': r'^(?i)sha-?(1|256)$',
-            'domains': r'^(?i)[A-Z0-9.-]+?\.[A-Z]{2,}$',
+            'encryption': r'(?i)^sha-?(1|256)$',
+            'domains': r'(?i)^[A-Z0-9.-]+?\.[A-Z]{2,}$',
             'memberOf': r'^\s*\S+.*$',
-            'role_mapping_expected': '^(?i)[YN]$'
+            'role_mapping_expected': '(?i)^[YN]$'
         }
 
         # Arbitrary functions used to validate SAML field and claim attributes for those
