@@ -15,9 +15,11 @@ for it. :)
   - [What is this tool?](#what-is-this-tool)
   - [Installation](#installation)
     - [Dependencies for `xmlsec`](#dependencies-for-xmlsec)
+    - [Workaround for `xmlsec` compile issues](#workaround-for-xmlsec-compile-issues)
+      - [For MacOS](#for-macos)
+      - [For Windows](#for-windows)
     - [Installing from PyPI](#installing-from-pypi)
     - [Installing from GitHub source](#installing-from-github-source)
-    - [Workaround for Apple M Chips](#workaround-for-apple-m-chips)
   - [Updating the package](#updating-the-package)
     - [From PyPI](#from-pypi)
     - [From GitHub source](#from-github-source)
@@ -52,20 +54,44 @@ brew install libxml2 libxmlsec1 pkg-config
 
 For Windows, installing the `xmlsec` package from PyPI already has these dependencies pre-built into the installation process for the package, so there should be no need to install them separately.
 
-For Apple M Chips a workaround will be outlined below.
+### Workaround for `xmlsec` compile issues
+
+There is presently a [compatibility issue](https://github.com/xmlsec/python-xmlsec/issues/252) with the Python package `xmlsec` and its underlying library `libxmlsec1` versions for `libxmlsec1` versions above `1.3.0`. This manifests as an ungraceful failure while installing this depedency when installing SAML Reader. This will happen regardless of if you are installing from PyPI or the GitHub source until `xmlsec` is fixed.
+
+#### For MacOS
+
+The following workaround has been tested successfully with a Macbook Pro M1 Pro and Python 3.10+. This involves downgrading `xmlsec` to a known working version (`1.2.37`).
+
+1. Install the required `xmlsec` dependencies above.
+2. Clone the repository locally with `git clone`.
+3. Create a virtual environment such as [virtualenv](https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/) or [Anaconda](https://docs.conda.io/projects/conda/en/latest/user-guide/getting-started.html) using Python 3.9+ and activate it.
+4. `brew edit libxmlsec1` and replace the entire contents of the brew package with the following [gist](https://raw.githubusercontent.com/Homebrew/homebrew-core/7f35e6ede954326a10949891af2dba47bbe1fc17/Formula/libxmlsec1.rb)
+5. `brew unlink libxmlsec1` and `brew uninstall libxmlsec1`
+6. In your shell `rc` file (`.bashrc`, `.zshrc`, etc.), set the environment variable `HOMEBREW_NO_INSTALL_FROM_API` to `1`.
+7. Force a clean installation with `brew install /opt/homebrew/Library/Taps/homebrew/homebrew-core/Formula/libxmlsec1.rb`
+8. Trigger a clean installation of the pip package with `pip install . --no-cache-dir`.
+9.  Remove `HOMEBREW_NO_INSTALL_FROM_API` from your shell `rc` file.
+10. (optional) To keep `brew` from upgrading the package, run `brew pin libxmlsec1`.
+
+Thank you to @josh-allan for identifying this workaround.
+
+#### For Windows
+
+Workarounds have not been tested on Windows or WSL deployments, nor am I certain if this compatibility issue affects Windows machines.
 
 ### Installing from PyPI
 
 To install SAML Reader from PyPI:
 
-1. It is **highly recommended** that this package be run in a Python virtual environment such as [virtualenv](https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/) or [Anaconda](https://docs.conda.io/projects/conda/en/latest/user-guide/getting-started.html). Please follow one of the previous links to learn how to create a Python environment of your choice. Create the environment with Python 3.6-3.10 and activate it. **SAML Reader is not currently compatible with Python 3.11+.** I do not recommend installing this directly into your system's global environment. There is just so much that can go wrong.
+1. It is **highly recommended** that this package be run in a Python virtual environment such as [virtualenv](https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/) or [Anaconda](https://docs.conda.io/projects/conda/en/latest/user-guide/getting-started.html). Please follow one of the previous links to learn how to create a Python environment of your choice. Create the environment with Python 3.6-3.10 and activate it.
+   - **SAML Reader on PyPI is not currently compatible with Python 3.11+.** [Install from the GitHub source](#installing-from-github-source) to enable compatibility with Python 3.11+. Compatibility is coming v0.0.7.
+   - I highly recommend against installing this directly into your system's global Python environment. There is just so much that can go wrong.
 2. Install the package from PyPI:
 
 ```bash
 pip install saml_reader
 ```
-3. Downgrade Werkzeug to `2.2.2` with `pip install Werkzeug==2.2.2` as the current release version introduces a breaking change and this version negates that change until a later Web Application Framework can be utilised. This is detailed in the Github issues section for [issue 85](https://github.com/clegaspi/saml_reader/issues/85)
-4. Run the command line interface by running `saml_reader` with options specified below.
+3. Run the command line interface by running `saml_reader` with options specified below.
 
 ### Installing from GitHub source
 
@@ -99,24 +125,6 @@ To pull down the latest version:
 3. If you installed in editable mode, you should be good to go. If you did not install in editable mode, run `pip install .` in the root directory of the repository.
 
 ---
-
-### Workaround for Apple M Chips
-
-There is presently an issue with `libxmlsec1` versions => `1.3.0` and Apple Silicon which results in an ungraceful failure in a required dependency `lxml` when `cpython` attempts to compile it. The following workaround has been tested successfully with a Macbook Pro M1 Pro and Python 3.10+. This involves downgrading `xmlsec` to a known working version (`1.2.37`).
-
-1. Install the required `xmlsec` dependencies above.
-2. Clone the repository locally with `git clone`.
-3. Create a virtual environment such as [virtualenv](https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/) or [Anaconda](https://docs.conda.io/projects/conda/en/latest/user-guide/getting-started.html) using Python 3.9+ and activate it.
-4. `brew edit libxmlsec1` and replace the entire contents of the brew package with the following [gist](https://raw.githubusercontent.com/Homebrew/homebrew-core/7f35e6ede954326a10949891af2dba47bbe1fc17/Formula/libxmlsec1.rb)
-5. `brew unlink libxmlsec1` and `brew uninstall libxmlsec1`
-6. In your shell `rc` file (`.bashrc`, `.zshrc`, etc.), set the environment variable `HOMEBREW_NO_INSTALL_FROM_API` to `1`.
-7. Force a clean installation with `brew install /opt/homebrew/Library/Taps/homebrew/homebrew-core/Formula/libxmlsec1.rb`
-8. Trigger a clean installation of the pip package with `pip install . --no-cache-dir`.
-9. Downgrade the version of `Werkzeug` from `3.0.1` to `2.2.2` using `pip install Werkzeug==2.2.2`.
-10. Remove `HOMEBREW_NO_INSTALL_FROM_API` from your shell `rc` file.
-11. (optional) To keep `brew` from upgrading the package, run `brew pin libxmlsec1`.
-
-Thank you to @josh-allan for identifying this workaround.
 
 ## Running the web app
 
@@ -276,4 +284,4 @@ I do not have any specific requirements for contributing at this time, other tha
 that I am using Google-style docstrings. Please feel free to open a pull request!
 
 As the architecture has evolved, I plan to create a document with more information on
-the structure of the application and how to contribute.
+the structure of the application and how to contribute. But as you might have noticed, updates to the application come slowly.
