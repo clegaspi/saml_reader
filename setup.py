@@ -23,8 +23,7 @@ setup(
         "python3-saml",
         "cryptography",
         "networkx",
-        "lxml",  # This should be installed as part of python3-saml
-        "defusedxml",  # This should be installed as part of python3-saml
+        "xmlsec >= 1.3.14",
         "dash",  # For web interface
         "dash-extensions",
     ],
