@@ -15,9 +15,6 @@ for it. :)
   - [What is this tool?](#what-is-this-tool)
   - [Installation](#installation)
     - [Dependencies for `xmlsec`](#dependencies-for-xmlsec)
-    - [Workaround for `xmlsec` compile issues](#workaround-for-xmlsec-compile-issues)
-      - [For MacOS](#for-macos)
-      - [For Windows](#for-windows)
     - [Installing from PyPI](#installing-from-pypi)
     - [Installing from GitHub source](#installing-from-github-source)
   - [Updating the package](#updating-the-package)
@@ -54,38 +51,16 @@ brew install libxml2 libxmlsec1 pkg-config
 
 For Windows, installing the `xmlsec` package from PyPI already has these dependencies pre-built into the installation process for the package, so there should be no need to install them separately.
 
-### Workaround for `xmlsec` compile issues
-
-There is presently a [compatibility issue](https://github.com/xmlsec/python-xmlsec/issues/252) with the Python package `xmlsec` and its underlying library `libxmlsec1` versions for `libxmlsec1` versions above `1.3.0`. This manifests as an ungraceful failure while installing this depedency when installing SAML Reader. This will happen regardless of if you are installing from PyPI or the GitHub source until `xmlsec` is fixed.
-
-#### For MacOS
-
-The following workaround has been tested successfully with a Macbook Pro M1 Pro and Python 3.10+. This involves downgrading `xmlsec` to a known working version (`1.2.37`).
-
-1. Install the required `xmlsec` dependencies above.
-2. Clone the repository locally with `git clone`.
-3. Create a virtual environment such as [virtualenv](https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/) or [Anaconda](https://docs.conda.io/projects/conda/en/latest/user-guide/getting-started.html) using Python 3.9+ and activate it.
-4. `brew edit libxmlsec1` and replace the entire contents of the brew package with the following [gist](https://raw.githubusercontent.com/Homebrew/homebrew-core/7f35e6ede954326a10949891af2dba47bbe1fc17/Formula/libxmlsec1.rb)
-5. `brew unlink libxmlsec1` and `brew uninstall libxmlsec1`
-6. In your shell `rc` file (`.bashrc`, `.zshrc`, etc.), set the environment variable `HOMEBREW_NO_INSTALL_FROM_API` to `1`.
-7. Force a clean installation with `brew install /opt/homebrew/Library/Taps/homebrew/homebrew-core/Formula/libxmlsec1.rb`
-8. Trigger a clean installation of the pip package with `pip install . --no-cache-dir`.
-9.  Remove `HOMEBREW_NO_INSTALL_FROM_API` from your shell `rc` file.
-10. (optional) To keep `brew` from upgrading the package, run `brew pin libxmlsec1`.
-
-Thank you to @josh-allan for identifying this workaround.
-
-#### For Windows
-
-Workarounds have not been tested on Windows or WSL deployments, nor am I certain if this compatibility issue affects Windows machines.
+As a note, `libxmlsec1` v1.3 and higher is incompatible with Python package `xmlsec` v1.3.13 and lower. If you are running into compile issues, be sure that your environment has `xmlsec` v1.3.14 or higher installed.
 
 ### Installing from PyPI
 
+SAML Reader v0.0.6 and earlier is incompatible with Python 3.11+. Install v0.0.7+ for compatibility with Python 3.11+.
+
 To install SAML Reader from PyPI:
 
-1. It is **highly recommended** that this package be run in a Python virtual environment such as [virtualenv](https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/) or [Anaconda](https://docs.conda.io/projects/conda/en/latest/user-guide/getting-started.html). Please follow one of the previous links to learn how to create a Python environment of your choice. Create the environment with Python 3.6-3.10 and activate it.
-   - **SAML Reader on PyPI is not currently compatible with Python 3.11+.** [Install from the GitHub source](#installing-from-github-source) to enable compatibility with Python 3.11+. Compatibility is coming v0.0.7.
-   - I highly recommend against installing this directly into your system's global Python environment. There is just so much that can go wrong.
+1. It is **highly recommended** that this package be run in a Python virtual environment such as [virtualenv](https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/) or [Anaconda](https://docs.conda.io/projects/conda/en/latest/user-guide/getting-started.html). Please follow one of the previous links to learn how to create a Python environment of your choice. Create the environment with **Python 3.9+** and activate it.
+   - It is highly recommend to not install this directly into your system's global Python environment. There is just so much that can go wrong.
 2. Install the package from PyPI:
 
 ```bash
@@ -104,7 +79,7 @@ If you wish to install from the GitHub source:
 
 ## Updating the package
 
-As this software is in its infancy, updates will be made quickly as bugs are discovered and improvements are made.
+As this software is in its infancy, updates will be made as quickly as I have time.
 
 ### From PyPI
 

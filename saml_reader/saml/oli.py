@@ -2,6 +2,7 @@
 This file contains customized wrappers for several OneLogin SAML classes to expand
 parsing ability and control errors raised.
 """
+
 from collections import defaultdict
 from functools import partial
 import re
@@ -11,9 +12,13 @@ from onelogin.saml2.response import OneLogin_Saml2_Response
 from onelogin.saml2.xml_utils import OneLogin_Saml2_XML
 from onelogin.saml2 import compat
 from lxml import etree
-from defusedxml.lxml import RestrictedElement
+from onelogin.saml2.xmlparser import RestrictedElement
 
-from saml_reader.saml.errors import SamlParsingError, SamlResponseEncryptedError, IsASamlRequest
+from saml_reader.saml.errors import (
+    SamlParsingError,
+    SamlResponseEncryptedError,
+    IsASamlRequest,
+)
 
 
 # noinspection PyMissingConstructor
@@ -22,6 +27,7 @@ class OLISamlParser(OneLogin_Saml2_Response):
     Wrapper for OneLogin SAML parser to be able to handle malformed XML and return
     custom errors.
     """
+
     def __init__(self, response):
         """
         Build OneLogin object manually.
@@ -45,7 +51,9 @@ class OLISamlParser(OneLogin_Saml2_Response):
         self.used_relaxed_parser = False
         while self.document is None:
             try:
-                self.document = CustomXMLParser.parse(self.response, relaxed=self.used_relaxed_parser)
+                self.document = CustomXMLParser.parse(
+                    self.response, relaxed=self.used_relaxed_parser
+                )
             except SamlParsingError as e:
                 if self.used_relaxed_parser:
                     raise e
@@ -53,18 +61,28 @@ class OLISamlParser(OneLogin_Saml2_Response):
 
         if self.used_relaxed_parser:
             # If the parser was relaxed, want to make sure we brute-force check.
-            encrypted_assertion_nodes = re.findall(r'</?(?:saml.?:)?EncryptedAssertion', self.response)
-            saml_request_node = re.findall(r'<\/?(?:saml.{0,2}:)?AuthnRequest', self.response)
+            encrypted_assertion_nodes = re.findall(
+                r"</?(?:saml.?:)?EncryptedAssertion", self.response
+            )
+            saml_request_node = re.findall(
+                r"<\/?(?:saml.{0,2}:)?AuthnRequest", self.response
+            )
         else:
-            encrypted_assertion_nodes = self.query('/samlp:Response/saml:EncryptedAssertion')
-            saml_request_node = self.query('/samlp:AuthnRequest')
+            encrypted_assertion_nodes = self.query(
+                "/samlp:Response/saml:EncryptedAssertion"
+            )
+            saml_request_node = self.query("/samlp:AuthnRequest")
 
         if encrypted_assertion_nodes:
-            raise SamlResponseEncryptedError("SAML response is encrypted. Cannot parse without key",
-                                             'relaxed' if self.used_relaxed_parser else 'strict')
+            raise SamlResponseEncryptedError(
+                "SAML response is encrypted. Cannot parse without key",
+                "relaxed" if self.used_relaxed_parser else "strict",
+            )
         if saml_request_node:
-            raise IsASamlRequest("The SAML data contains a request and not a response",
-                                 'relaxed' if self.used_relaxed_parser else 'strict')
+            raise IsASamlRequest(
+                "The SAML data contains a request and not a response",
+                "relaxed" if self.used_relaxed_parser else "strict",
+            )
 
     def get_attributes(self, mark_duplicate_attributes=False):
         """Get attributes from attribute statement.
@@ -84,12 +102,16 @@ class OLISamlParser(OneLogin_Saml2_Response):
         attributes = defaultdict(list)
         duplicate_attributes = set()
 
-        attribute_nodes = self.query_assertion('/saml:AttributeStatement/saml:Attribute')
+        attribute_nodes = self.query_assertion(
+            "/saml:AttributeStatement/saml:Attribute"
+        )
         for attribute_node in attribute_nodes:
-            attr_name = attribute_node.get('Name')
+            attr_name = attribute_node.get("Name")
             if attr_name in attributes:
                 duplicate_attributes.add(attr_name)
-            for attr in attribute_node.iterchildren('{%s}AttributeValue' % OneLogin_Saml2_Constants.NSMAP['saml']):
+            for attr in attribute_node.iterchildren(
+                "{%s}AttributeValue" % OneLogin_Saml2_Constants.NSMAP["saml"]
+            ):
                 attr_text = OneLogin_Saml2_XML.element_text(attr)
                 if attr_text:
                     attr_text = attr_text.strip()
@@ -97,20 +119,21 @@ class OLISamlParser(OneLogin_Saml2_Response):
                         attributes[attr_name].append(attr_text)
 
                 # Parse any nested NameID children
-                for nameid in attr.iterchildren('{%s}NameID' % OneLogin_Saml2_Constants.NSMAP['saml']):
-                    attributes[attr_name].append({
-                        'NameID': {
-                            'Format': nameid.get('Format'),
-                            'NameQualifier': nameid.get('NameQualifier'),
-                            'value': nameid.text
+                for nameid in attr.iterchildren(
+                    "{%s}NameID" % OneLogin_Saml2_Constants.NSMAP["saml"]
+                ):
+                    attributes[attr_name].append(
+                        {
+                            "NameID": {
+                                "Format": nameid.get("Format"),
+                                "NameQualifier": nameid.get("NameQualifier"),
+                                "value": nameid.text,
+                            }
                         }
-                    })
+                    )
         if mark_duplicate_attributes:
             return {
-                k: {
-                    'values': v,
-                    'is_duplicate': k in duplicate_attributes
-                }
+                k: {"values": v, "is_duplicate": k in duplicate_attributes}
                 for k, v in attributes.items()
             }
         return attributes
@@ -144,6 +167,7 @@ class CustomXMLParser(OneLogin_Saml2_XML):
     """
     Wrapper for OneLogin XML parser to allow for alternative parsing methods.
     """
+
     @classmethod
     def parse(cls, xml, relaxed=False):
         """
@@ -169,8 +193,9 @@ class CustomXMLParser(OneLogin_Saml2_XML):
             document = cls.to_etree(xml)
         except etree.XMLSyntaxError:
             # Usually thrown with strict parser and syntax error
-            raise SamlParsingError("Could not parse the XML data",
-                                   'relaxed' if relaxed else 'strict')
+            raise SamlParsingError(
+                "Could not parse the XML data", "relaxed" if relaxed else "strict"
+            )
         except AttributeError as e:
             if e.args[0].endswith("'getroottree'"):
                 # When using the relaxed parser, if the cython function which parses
@@ -178,8 +203,9 @@ class CustomXMLParser(OneLogin_Saml2_XML):
                 # Then, when the encapsulating function (`lxml.fromstring()`) subsequently tries
                 # to access the `getroottree()` class method, expecting an `lxml.etree.Element` object,
                 # no such method is found and an AttributeError is thrown.
-                raise SamlParsingError("Could not parse the XML data",
-                                       'relaxed' if relaxed else 'strict')
+                raise SamlParsingError(
+                    "Could not parse the XML data", "relaxed" if relaxed else "strict"
+                )
             else:
                 raise e
 
