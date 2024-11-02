@@ -395,58 +395,147 @@ class RegexSamlParser(BaseSamlParser):
         Returns:
             None
         """
-        # TODO: Let's use named groups instead, where we can
-        regex_by_field = {
-            "certificate": re.compile(
-                r"(?s)<(?:ds:)?X509Certificate.*?>(.*?)</(?:ds:)?X509Certificate>"
-            ),
-            "name_id": re.compile(
-                r"(?s)<(?:saml.?:)?NameID.*?>(.*?)</(?:saml.?:)?NameID>"
-            ),
-            "name_id_format": re.compile(
-                r"(?s)<(?:saml.?:)?NameID.*?Format=\"(.+?)\".*?>"
-            ),
-            # This is a pretty relaxed regex because it occurs right at the beginning of the
-            # SAML response where there could be syntax errors if someone copy-pasted poorly
-            "acs": re.compile(
-                r"(?s)((?:<saml.*?:Response)?.*?Destination=\"(?P<acs>.+?)\".*?>|"
-                r"<(?:saml.?:)?SubjectConfirmationData.*?Recipient=\"(?P<acs_alt>.+?)\".*?)"
-            ),
-            "encryption": re.compile(
-                r"(?s)<(?:ds:)?SignatureMethod.*?Algorithm=\".+?sha(1|256)\".*?>"
-            ),
-            "audience": re.compile(
-                r"(?s)<(?:saml.?:)?Audience(?:\s.*?>|>)(.*?)</(?:saml.?:)?Audience>"
-            ),
-            "issuer": re.compile(
-                r"(?s)<(?:saml.?:)?Issuer.*?>(.*?)<\/(?:saml.?:)?Issuer>"
-            ),
-            "attributes": re.compile(
-                r"(?s)<(?:saml.?:)?Attribute.*?Name=\"(.+?)\".*?>\s*(.*?)\s*</(?:saml.?:)?Attribute>"
-            ),
+
+        self._saml_values = {
+            "certificate": self._parse_certificate(),
+            "acs": self._parse_acs(),
+            "encryption": self._parse_encryption(),
+            "audience": self._parse_audience(),
+            "issuer": self._parse_issuer(),
+            "attributes": self._parse_attributes(),
         }
 
-        transform_by_field = {
-            "certificate": lambda x: x[0] if x else None,
-            "name_id": lambda x: x[0] if x else None,
-            "name_id_format": lambda x: x[0] if x else None,
-            "acs": lambda x: x[0][1]
-            if x[0] and x[0][1]
-            else x[0][2]
-            if x and x[0] and x[0][2]
-            else None,
-            "encryption": lambda x: "SHA" + x[0] if x else None,
-            "audience": lambda x: x[0] if x else None,
-            "issuer": lambda x: x[0] if x else None,
-            "attributes": self.__transform_attributes,
-        }
+        self._saml_values["name_id"], self._saml_values["name_id_format"] = (
+            self._parse_name_id_and_format()
+        )
 
-        for field, regex in regex_by_field.items():
-            result = regex.findall(self._saml)
-            result = transform_by_field[field](result)
-            self._saml_values[field] = result
+        self._duplicate_attributes = set(
+            k for k, v in self._saml_values["attributes"].items() if isinstance(v, list)
+        )
 
-    def __transform_attributes(self, raw_data):
+    def _parse_certificate(self):
+        """Parse certificate from SAML
+
+        Returns:
+            str | None: certificate text, if present, otherwise None
+        """
+        data = re.findall(
+            r"(?s)<(?:ds:)?X509Certificate.*?>(.*?)</(?:ds:)?X509Certificate>",
+            self._saml,
+        )
+        return data[0] if data else None
+
+    def _parse_name_id_and_format(self):
+        """Parse Name ID information from SAML
+
+        Returns:
+            tuple[str | None, str | None]: name ID and format, if in SAML else None for each
+        """
+        name_id = re.findall(
+            r"(?s)<(?:saml.?:)?NameID.*?>(.*?)</(?:saml.?:)?NameID>", self._saml
+        )
+
+        name_id_format = re.findall(
+            r"(?s)<(?:saml.?:)?NameID.*?Format=\"(.+?)\".*?>", self._saml
+        )
+        name_id = name_id[0] if name_id else None
+        name_id_format = name_id_format[0] if name_id_format else None
+        return name_id, name_id_format
+
+    def _parse_acs(self):
+        """Parse ACS from SAML
+
+        Returns:
+            str | None: ACS text, if present, otherwise None
+        """
+        acs = None
+        data = re.findall(
+            r"(?s)((?:<saml.*?:Response)?.*?Destination=\"(?P<acs>.+?)\".*?>|",
+            self._saml,
+        )
+        if data:
+            acs = data[0] or None
+        if not acs:
+            data = re.findall(
+                r"<(?:saml.?:)?SubjectConfirmationData.*?Recipient=\"(?P<acs_alt>.+?)\".*?)",
+                self._saml,
+            )
+            if data:
+                acs = data[0] or None
+        return acs
+
+    def _parse_audience(self):
+        """Parse audience from SAML
+
+        Returns:
+            str | None: audience text, if present, otherwise None
+        """
+        data = re.findall(
+            r"(?s)<(?:saml.?:)?Audience(?:\s.*?>|>)(.*?)</(?:saml.?:)?Audience>",
+            self._saml,
+        )
+        if not data:
+            return None
+        return data[0] or None
+
+    def _parse_issuer(self):
+        """Parse Issuer from SAML
+
+        Returns:
+            str | None: issuer text, if present, otherwise None
+        """
+        data = re.findall(
+            r"(?s)<(?:saml.?:)?Issuer.*?>(.*?)<\/(?:saml.?:)?Issuer>", self._saml
+        )
+        if not data:
+            return None
+        return data[0] or None
+
+    def _parse_attributes(self):
+        """
+        Parse and apply specific transformations to claim attributes.
+
+        Returns:
+            dict[str, str]: claim attributes
+        """
+        attribute_data = self._saml.get_attributes(mark_duplicate_attributes=True)
+        if not attribute_data:
+            return None
+
+        # No special transforms at this time
+        special_transform_by_attribute = {}
+
+        transformed_attributes = dict()
+
+        for attribute_name, value_dict in attribute_data.items():
+            value = value_dict["values"]
+            if attribute_name in special_transform_by_attribute:
+                transformed_attributes[attribute_name] = special_transform_by_attribute[
+                    attribute_name
+                ](value)
+            elif isinstance(value, list) and len(value) > 1:
+                transformed_attributes[attribute_name] = value
+            else:
+                transformed_attributes[attribute_name] = value[0] if value else ""
+
+        return transformed_attributes
+
+    def _parse_encryption(self):
+        """
+        Parse encryption values from SAML
+
+        Returns:
+            str | None: encryption algorithm, None if not found
+        """
+        data = re.findall(
+            r"(?s)<(?:ds:)?SignatureMethod.*?Algorithm=\".+?sha(1|256)\".*?>",
+            self._saml,
+        )
+        if not data:
+            return None
+        return "SHA" + data[0]
+
+    def _transform_attributes(self, raw_data):
         """
         Apply specific transformations to claim attributes.
 
@@ -456,6 +545,10 @@ class RegexSamlParser(BaseSamlParser):
         Returns:
             (dict) transformed attributes
         """
+        raw_data = re.findall(
+            r"(?s)<(?:saml.?:)?Attribute.*?Name=\"(.+?)\".*?>\s*(.*?)\s*</(?:saml.?:)?Attribute>",
+            self._saml,
+        )
         if not raw_data:
             return None
         value_regex = re.compile(
