@@ -60,14 +60,16 @@ class OLISamlParser(OneLogin_Saml2_Response):
                 self.used_relaxed_parser = True
 
         if self.used_relaxed_parser:
+            if isinstance(self.response, bytes):
+                self.response = str(self.response, encoding="UTF-8")
             # If the parser was relaxed, want to make sure we brute-force check.
             encrypted_assertion_nodes = re.findall(
                 r"</?(?:saml.?:)?EncryptedAssertion",
-                str(self.response, encoding="UTF-8"),
+                self.response,
             )
             saml_request_node = re.findall(
                 r"<\/?(?:saml.{0,2}:)?AuthnRequest",
-                str(self.response, encoding="UTF-8"),
+                self.response,
             )
         else:
             encrypted_assertion_nodes = self.query(
