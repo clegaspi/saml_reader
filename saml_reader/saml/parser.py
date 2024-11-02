@@ -82,6 +82,11 @@ class StandardSamlParser(BaseSamlParser):
         )
 
     def _parse_certificate(self):
+        """Parse certificate from SAML
+
+        Returns:
+            str | None: certificate text, if present, otherwise None
+        """
         data = self._saml.query_assertion(
             "/ds:Signature/ds:KeyInfo/ds:X509Data/ds:X509Certificate"
         ) or self._saml.query(
@@ -92,6 +97,11 @@ class StandardSamlParser(BaseSamlParser):
         return data[0].text or None
 
     def _parse_name_id_and_format(self):
+        """Parse Name ID information from SAML
+
+        Returns:
+            tuple[str | None, str | None]: name ID and format, if in SAML else None for each
+        """
         data = self._saml.query_assertion("/saml:Subject/saml:NameID")
         if not data:
             return None, None
@@ -101,6 +111,11 @@ class StandardSamlParser(BaseSamlParser):
         return name_id, name_id_format
 
     def _parse_acs(self):
+        """Parse ACS from SAML
+
+        Returns:
+            str | None: ACS text, if present, otherwise None
+        """
         acs = None
         data = self._saml.query("/samlp:Response")
         if data:
@@ -114,6 +129,11 @@ class StandardSamlParser(BaseSamlParser):
         return acs
 
     def _parse_audience(self):
+        """Parse audience from SAML
+
+        Returns:
+            str | None: audience text, if present, otherwise None
+        """
         data = self._saml.query_assertion(
             "/saml:Conditions/saml:AudienceRestriction/saml:Audience"
         )
@@ -122,6 +142,11 @@ class StandardSamlParser(BaseSamlParser):
         return data[0].text or None
 
     def _parse_issuer(self):
+        """Parse Issuer from SAML
+
+        Returns:
+            str | None: issuer text, if present, otherwise None
+        """
         data = self._saml.query_assertion("/saml:Issuer")
         if not data:
             return None
@@ -129,13 +154,10 @@ class StandardSamlParser(BaseSamlParser):
 
     def _parse_attributes(self):
         """
-        Apply specific transformations to claim attributes.
-
-        Args:
-            attribute_data (dict): attribute data from SAML response
+        Parse and apply specific transformations to claim attributes.
 
         Returns:
-            (dict) transformed attributes
+            dict[str, str]: claim attributes
         """
         attribute_data = self._saml.get_attributes(mark_duplicate_attributes=True)
         if not attribute_data:
@@ -161,12 +183,10 @@ class StandardSamlParser(BaseSamlParser):
 
     def _parse_encryption(self):
         """
-        Parse encryption values from URI
-        Args:
-            result (lxml.etree.Element): signature method query result
+        Parse encryption values from SAML
 
         Returns:
-            (basestring) encryption algorithm, None if not found
+            str | None: encryption algorithm, None if not found
         """
         data = self._saml.query_assertion(
             "/ds:Signature/ds:SignedInfo/ds:SignatureMethod"
