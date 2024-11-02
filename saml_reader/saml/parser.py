@@ -14,7 +14,11 @@ from lxml import etree
 
 from saml_reader.saml.base import BaseSamlParser
 from saml_reader.saml.oli import OLISamlParser
-from saml_reader.saml.errors import SamlResponseEncryptedError, IsASamlRequest, DataTypeInvalid
+from saml_reader.saml.errors import (
+    SamlResponseEncryptedError,
+    IsASamlRequest,
+    DataTypeInvalid,
+)
 
 
 class StandardSamlParser(BaseSamlParser):
@@ -60,58 +64,70 @@ class StandardSamlParser(BaseSamlParser):
             None
         """
 
-        value_by_field = {
-            'certificate': [
-                self._saml.query_assertion(
-                    '/ds:Signature/ds:KeyInfo/ds:X509Data/ds:X509Certificate'
-                ),
-                self._saml.query(
-                    '/samlp:Response/ds:Signature/ds:KeyInfo/ds:X509Data/ds:X509Certificate'
-                )
-            ],
-            'name_id': self._saml.query_assertion(
-                '/saml:Subject/saml:NameID'
-            ),
-            'name_id_format': self._saml.query_assertion(
-                '/saml:Subject/saml:NameID'
-            ),
-            'acs': [
-                self._saml.query('/samlp:Response'),
-                self._saml.query_assertion(
-                    '/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData'
-                )
-            ],
-            'encryption':
-                self._saml.query_assertion('/ds:Signature/ds:SignedInfo/ds:SignatureMethod') or
-                self._saml.query('/samlp:Response/ds:Signature/ds:SignedInfo/ds:SignatureMethod'),
-            'audience': self._saml.query_assertion('/saml:Conditions/saml:AudienceRestriction/saml:Audience'),
-            'issuer': self._saml.query_assertion('/saml:Issuer'),
-            'attributes': self._saml.get_attributes(mark_duplicate_attributes=True)
+        self._saml_values = {
+            "certificate": self._parse_certificate(),
+            "acs": self._parse_acs(),
+            "encryption": self._parse_encryption(),
+            "audience": self._parse_audience(),
+            "issuer": self._parse_issuer(),
+            "attributes": self._parse_attributes(),
         }
 
-        transform_by_field = {
-            'certificate': lambda x: None if not x else
-                x[0][0].text if x[0] else
-                x[1][0].text if x[1] else None,
-            'name_id': lambda x: x[0].text if x else None,
-            'name_id_format': lambda x: x[0].attrib.get('Format') if x else None,
-            'acs': lambda x: x[0][0].attrib.get('Destination') or x[1][0].attrib.get('Recipient') or None,
-            'encryption': self.__parse_encryption,
-            'audience': lambda x: x[0].text if x else None,
-            'issuer': lambda x: x[0].text if x else None,
-            'attributes': self.__parse_attributes
-        }
-
-        for field, value in value_by_field.items():
-            self._saml_values[field] = transform_by_field[field](value)
-
-        self._duplicate_attributes = set(
-            k for k, v in value_by_field['attributes'].items()
-            if v['is_duplicate']
+        self._saml_values["name_id"], self._saml_values["name_id_format"] = (
+            self._parse_name_id_and_format()
         )
 
-    @staticmethod
-    def __parse_attributes(attribute_data):
+        self._duplicate_attributes = set(
+            k for k, v in self._saml_values["attributes"].items() if isinstance(v, list)
+        )
+
+    def _parse_certificate(self):
+        data = self._saml.query_assertion(
+            "/ds:Signature/ds:KeyInfo/ds:X509Data/ds:X509Certificate"
+        ) or self._saml.query(
+            "/samlp:Response/ds:Signature/ds:KeyInfo/ds:X509Data/ds:X509Certificate"
+        )
+        if not data:
+            return None
+        return data[0].text or None
+
+    def _parse_name_id_and_format(self):
+        data = self._saml.query_assertion("/saml:Subject/saml:NameID")
+        if not data:
+            return None, None
+        name_id = data[0].text or None
+        name_id_format = data[0].attrib.get("Format", None)
+
+        return name_id, name_id_format
+
+    def _parse_acs(self):
+        acs = None
+        data = self._saml.query("/samlp:Response")
+        if data:
+            acs = data[0].attrib.get("Destination", None)
+        if not acs:
+            data = self._saml.query_assertion(
+                "/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData"
+            )
+            if data:
+                acs = data[0].attrib.get("Recipient", None)
+        return acs
+
+    def _parse_audience(self):
+        data = self._saml.query_assertion(
+            "/saml:Conditions/saml:AudienceRestriction/saml:Audience"
+        )
+        if not data:
+            return None
+        return data[0].text or None
+
+    def _parse_issuer(self):
+        data = self._saml.query_assertion("/saml:Issuer")
+        if not data:
+            return None
+        return data[0].text or None
+
+    def _parse_attributes(self):
         """
         Apply specific transformations to claim attributes.
 
@@ -121,6 +137,7 @@ class StandardSamlParser(BaseSamlParser):
         Returns:
             (dict) transformed attributes
         """
+        attribute_data = self._saml.get_attributes(mark_duplicate_attributes=True)
         if not attribute_data:
             return None
 
@@ -130,22 +147,19 @@ class StandardSamlParser(BaseSamlParser):
         transformed_attributes = dict()
 
         for attribute_name, value_dict in attribute_data.items():
-            value = value_dict['values']
+            value = value_dict["values"]
             if attribute_name in special_transform_by_attribute:
-                transformed_attributes[attribute_name] = (
-                    special_transform_by_attribute[attribute_name](value)
-                )
-            elif len(value) > 1:
+                transformed_attributes[attribute_name] = special_transform_by_attribute[
+                    attribute_name
+                ](value)
+            elif isinstance(value, list) and len(value) > 1:
                 transformed_attributes[attribute_name] = value
             else:
-                transformed_attributes[attribute_name] = (
-                    value[0] if value else ""
-                )
+                transformed_attributes[attribute_name] = value[0] if value else ""
 
         return transformed_attributes
 
-    @staticmethod
-    def __parse_encryption(result):
+    def _parse_encryption(self):
         """
         Parse encryption values from URI
         Args:
@@ -154,9 +168,14 @@ class StandardSamlParser(BaseSamlParser):
         Returns:
             (basestring) encryption algorithm, None if not found
         """
-        if not result:
+        data = self._saml.query_assertion(
+            "/ds:Signature/ds:SignedInfo/ds:SignatureMethod"
+        ) or self._saml.query(
+            "/samlp:Response/ds:Signature/ds:SignedInfo/ds:SignatureMethod"
+        )
+        if not data:
             return None
-        uri = result[0].attrib.get('Algorithm') or ""
+        uri = data[0].attrib.get("Algorithm") or ""
         algorithm = re.findall(r"(?i)sha(1|256)$", uri)
         if algorithm:
             return "SHA" + algorithm[0]
@@ -173,7 +192,7 @@ class StandardSamlParser(BaseSamlParser):
         Returns:
             (BaseSamlParser) parsed SAML response object
         """
-        rx = r'[<>]'
+        rx = r"[<>]"
         if not re.search(rx, xml):
             raise DataTypeInvalid("This does not appear to be XML")
         return cls(xml)
@@ -192,7 +211,7 @@ class StandardSamlParser(BaseSamlParser):
         """
         value = base64 if not url_decode else unquote(base64)
         # Check to see if this is valid base64
-        rx = r'[^a-zA-Z0-9/+=]'
+        rx = r"[^a-zA-Z0-9/+=]"
         if re.search(rx, value):
             raise DataTypeInvalid("This does not appear to be valid base64")
         return cls(utils.b64decode(value))
@@ -204,7 +223,7 @@ class StandardSamlParser(BaseSamlParser):
         Returns:
             (basestring) Certificate contents as string, None if value not found
         """
-        return self._saml_values.get('certificate')
+        return self._saml_values.get("certificate")
 
     def get_subject_name_id(self):
         """
@@ -213,7 +232,7 @@ class StandardSamlParser(BaseSamlParser):
         Returns:
             (basestring) Value of the Name ID, None if value not found
         """
-        return self._saml_values.get('name_id')
+        return self._saml_values.get("name_id")
 
     def get_subject_name_id_format(self):
         """
@@ -222,7 +241,7 @@ class StandardSamlParser(BaseSamlParser):
         Returns:
             (basestring) Format attribute of Name ID format, None if value not found
         """
-        return self._saml_values.get('name_id_format')
+        return self._saml_values.get("name_id_format")
 
     def get_assertion_consumer_service_url(self):
         """
@@ -231,7 +250,7 @@ class StandardSamlParser(BaseSamlParser):
         Returns:
             (basestring) Value of Assertion Consumer Service URL, None if value not found
         """
-        return self._saml_values.get('acs')
+        return self._saml_values.get("acs")
 
     def get_encryption_algorithm(self):
         """
@@ -241,7 +260,7 @@ class StandardSamlParser(BaseSamlParser):
         Returns:
             (basestring) Value of encryption algorithm, None if value not found
         """
-        return self._saml_values.get('encryption')
+        return self._saml_values.get("encryption")
 
     def get_audience_url(self):
         """
@@ -250,7 +269,7 @@ class StandardSamlParser(BaseSamlParser):
         Returns:
             (basestring) Value of Audience URL, None if value not found
         """
-        return self._saml_values.get('audience')
+        return self._saml_values.get("audience")
 
     def get_issuer_uri(self):
         """
@@ -259,7 +278,7 @@ class StandardSamlParser(BaseSamlParser):
         Returns:
             (basestring) Value of Issuer URI, None if value not found
         """
-        return self._saml_values.get('issuer')
+        return self._saml_values.get("issuer")
 
     def get_attributes(self):
         """
@@ -268,7 +287,7 @@ class StandardSamlParser(BaseSamlParser):
         Returns:
             (dict) Claim attribute values keyed by attribute name, empty dict if no attributes were found
         """
-        return self._saml_values.get('attributes') or dict()
+        return self._saml_values.get("attributes") or dict()
 
     def is_assertion_found(self):
         """
@@ -338,9 +357,13 @@ class RegexSamlParser(BaseSamlParser):
         self._duplicate_attributes = set()
 
         if self._is_encrypted():
-            raise SamlResponseEncryptedError("SAML response is encrypted. Cannot parse without key", 'regex')
+            raise SamlResponseEncryptedError(
+                "SAML response is encrypted. Cannot parse without key", "regex"
+            )
         if self._is_saml_request():
-            raise IsASamlRequest("The SAML data contains a request and not a response", 'regex')
+            raise IsASamlRequest(
+                "The SAML data contains a request and not a response", "regex"
+            )
 
         super().__init__()
         self._parse_saml_values()
@@ -354,33 +377,48 @@ class RegexSamlParser(BaseSamlParser):
         """
         # TODO: Let's use named groups instead, where we can
         regex_by_field = {
-            'certificate': re.compile(r"(?s)<(?:ds:)?X509Certificate.*?>(.*?)</(?:ds:)?X509Certificate>"),
-            'name_id': re.compile(r"(?s)<(?:saml.?:)?NameID.*?>(.*?)</(?:saml.?:)?NameID>"),
-            'name_id_format': re.compile(r"(?s)<(?:saml.?:)?NameID.*?Format=\"(.+?)\".*?>"),
+            "certificate": re.compile(
+                r"(?s)<(?:ds:)?X509Certificate.*?>(.*?)</(?:ds:)?X509Certificate>"
+            ),
+            "name_id": re.compile(
+                r"(?s)<(?:saml.?:)?NameID.*?>(.*?)</(?:saml.?:)?NameID>"
+            ),
+            "name_id_format": re.compile(
+                r"(?s)<(?:saml.?:)?NameID.*?Format=\"(.+?)\".*?>"
+            ),
             # This is a pretty relaxed regex because it occurs right at the beginning of the
             # SAML response where there could be syntax errors if someone copy-pasted poorly
-            'acs': re.compile(
+            "acs": re.compile(
                 r"(?s)((?:<saml.*?:Response)?.*?Destination=\"(?P<acs>.+?)\".*?>|"
                 r"<(?:saml.?:)?SubjectConfirmationData.*?Recipient=\"(?P<acs_alt>.+?)\".*?)"
             ),
-            'encryption': re.compile(r"(?s)<(?:ds:)?SignatureMethod.*?Algorithm=\".+?sha(1|256)\".*?>"),
-            'audience': re.compile(r"(?s)<(?:saml.?:)?Audience(?:\s.*?>|>)(.*?)</(?:saml.?:)?Audience>"),
-            'issuer': re.compile(r"(?s)<(?:saml.?:)?Issuer.*?>(.*?)<\/(?:saml.?:)?Issuer>"),
-            'attributes': re.compile(
+            "encryption": re.compile(
+                r"(?s)<(?:ds:)?SignatureMethod.*?Algorithm=\".+?sha(1|256)\".*?>"
+            ),
+            "audience": re.compile(
+                r"(?s)<(?:saml.?:)?Audience(?:\s.*?>|>)(.*?)</(?:saml.?:)?Audience>"
+            ),
+            "issuer": re.compile(
+                r"(?s)<(?:saml.?:)?Issuer.*?>(.*?)<\/(?:saml.?:)?Issuer>"
+            ),
+            "attributes": re.compile(
                 r"(?s)<(?:saml.?:)?Attribute.*?Name=\"(.+?)\".*?>\s*(.*?)\s*</(?:saml.?:)?Attribute>"
-            )
+            ),
         }
 
         transform_by_field = {
-            'certificate': lambda x: x[0] if x else None,
-            'name_id': lambda x: x[0] if x else None,
-            'name_id_format': lambda x: x[0] if x else None,
-            'acs': lambda x: x[0][1] if x[0] and x[0][1] else x[0][2] 
-                if x and x[0] and x[0][2] else None,
-            'encryption': lambda x: "SHA" + x[0] if x else None,
-            'audience': lambda x: x[0] if x else None,
-            'issuer': lambda x: x[0] if x else None,
-            'attributes': self.__transform_attributes
+            "certificate": lambda x: x[0] if x else None,
+            "name_id": lambda x: x[0] if x else None,
+            "name_id_format": lambda x: x[0] if x else None,
+            "acs": lambda x: x[0][1]
+            if x[0] and x[0][1]
+            else x[0][2]
+            if x and x[0] and x[0][2]
+            else None,
+            "encryption": lambda x: "SHA" + x[0] if x else None,
+            "audience": lambda x: x[0] if x else None,
+            "issuer": lambda x: x[0] if x else None,
+            "attributes": self.__transform_attributes,
         }
 
         for field, regex in regex_by_field.items():
@@ -400,7 +438,9 @@ class RegexSamlParser(BaseSamlParser):
         """
         if not raw_data:
             return None
-        value_regex = re.compile(r"(?s)<(?:saml.?:)?AttributeValue.*?>(.*?)</(?:saml.?:)?AttributeValue>")
+        value_regex = re.compile(
+            r"(?s)<(?:saml.?:)?AttributeValue.*?>(.*?)</(?:saml.?:)?AttributeValue>"
+        )
 
         special_transform_by_attribute = {}
         self._duplicate_attributes = set()
@@ -413,7 +453,7 @@ class RegexSamlParser(BaseSamlParser):
             if not value:
                 # findall() returns a list with an empty string if there was a match but the group was empty
                 # but returns an empty list if there were no matches
-                value = ['(could not parse)']
+                value = ["(could not parse)"]
             if name in special_transform_by_attribute:
                 transformed_attributes[name].append(
                     special_transform_by_attribute[name](value)
@@ -421,9 +461,7 @@ class RegexSamlParser(BaseSamlParser):
             elif len(value) > 1:
                 transformed_attributes[name].extend(value)
             else:
-                transformed_attributes[name].append(
-                    value[0] if value else ""
-                )
+                transformed_attributes[name].append(value[0] if value else "")
 
         return {
             k: "" if not v else v if len(v) > 1 else v[0]
@@ -466,7 +504,7 @@ class RegexSamlParser(BaseSamlParser):
             (BaseSamlParser) parsed SAML response object
         """
         # Check to see if this couldn't be XML
-        rx = r'[<>]'
+        rx = r"[<>]"
         if not re.search(rx, xml):
             raise DataTypeInvalid("This does not appear to be XML")
         return cls(xml)
@@ -486,7 +524,7 @@ class RegexSamlParser(BaseSamlParser):
 
         value = base64 if not url_decode else unquote(base64)
         # Check to see if this is valid base64
-        rx = r'[^a-zA-Z0-9/?=]'
+        rx = r"[^a-zA-Z0-9/?=]"
         if re.search(rx, value):
             raise DataTypeInvalid("This does not appear to be valid base64")
         return cls(utils.b64decode(value))
@@ -499,7 +537,7 @@ class RegexSamlParser(BaseSamlParser):
             (basestring) Certificate contents as string, None if value not found
         """
 
-        return self._saml_values.get('certificate')
+        return self._saml_values.get("certificate")
 
     def get_subject_name_id(self):
         """
@@ -508,7 +546,7 @@ class RegexSamlParser(BaseSamlParser):
         Returns:
             (basestring) Value of the Name ID, None if value not found
         """
-        return self._saml_values.get('name_id')
+        return self._saml_values.get("name_id")
 
     def get_subject_name_id_format(self):
         """
@@ -517,7 +555,7 @@ class RegexSamlParser(BaseSamlParser):
         Returns:
             (basestring) Format attribute of Name ID, None if value not found
         """
-        return self._saml_values.get('name_id_format')
+        return self._saml_values.get("name_id_format")
 
     def get_assertion_consumer_service_url(self):
         """
@@ -526,7 +564,7 @@ class RegexSamlParser(BaseSamlParser):
         Returns:
             (basestring) Value of Assertion Consumer Service URL, None if value not found
         """
-        return self._saml_values.get('acs')
+        return self._saml_values.get("acs")
 
     def get_encryption_algorithm(self):
         """
@@ -536,7 +574,7 @@ class RegexSamlParser(BaseSamlParser):
         Returns:
             (basestring) Value of encryption algorithm, None if value not found
         """
-        return self._saml_values.get('encryption')
+        return self._saml_values.get("encryption")
 
     def get_audience_url(self):
         """
@@ -545,7 +583,7 @@ class RegexSamlParser(BaseSamlParser):
         Returns:
             (basestring) Value of Audience URL algorithm, None if value not found
         """
-        return self._saml_values.get('audience')
+        return self._saml_values.get("audience")
 
     def get_issuer_uri(self):
         """
@@ -554,7 +592,7 @@ class RegexSamlParser(BaseSamlParser):
         Returns:
             (basestring) Value of Issuer URI, None if value not found
         """
-        return self._saml_values.get('issuer')
+        return self._saml_values.get("issuer")
 
     def get_attributes(self):
         """
@@ -563,7 +601,7 @@ class RegexSamlParser(BaseSamlParser):
         Returns:
             (dict) Claim attribute values keyed by attribute name, empty dict if no values found
         """
-        return self._saml_values.get('attributes') or dict()
+        return self._saml_values.get("attributes") or dict()
 
     def is_assertion_found(self):
         """
@@ -603,7 +641,7 @@ class RegexSamlParser(BaseSamlParser):
             (bool) True if any values were able to be parsed, False otherwise
         """
         return any(self._saml_values.values())
-    
+
     def get_duplicate_attribute_names(self):
         """Return any attribute names that were duplicated in the
         attribute statement.
