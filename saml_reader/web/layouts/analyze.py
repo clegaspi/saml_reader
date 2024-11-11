@@ -139,8 +139,8 @@ def build_layout():
                 """
             #### Look up IdP information
 
-            If you would like to look up the identity provider information, please paste
-            the federation app URL below. Note: Lookup requires you to authenticate
+            If you would like to look up the identity provider information directly from Atlas,
+            please paste the federation app URL below. Note: Lookup requires you to authenticate
             to Atlas with OIDC. You will be prompted to enter a code in the opened
             webpage, similar to how it is done with the Atlas CLI."""
             ),
