@@ -201,7 +201,7 @@ def build_layout():
                 """
             #### Federation values
             
-            Enter or review retrived federation values below."""
+            Enter or review retrieved federation values below."""
             ),
             dcc.ConfirmDialogProvider(
                 children=html.Button(
