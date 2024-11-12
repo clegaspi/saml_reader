@@ -179,17 +179,6 @@ def build_layout():
                         hidden=True,
                     ),
                     html.Div(id="div-idp-selection", hidden=True),
-                    # dcc.Dropdown(
-                    #     id="idp-selection",
-                    #     options=[],
-                    #     placeholder="Select IdP",
-                    #     style={
-                    #         "width": "150px",
-                    #         "display": "inline-block",
-                    #         "margin-right": "10px",
-                    #         "vertical-align": "middle",
-                    #         "hidden": True,
-                    #     },
                 ]
             ),
         ]

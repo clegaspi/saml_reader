@@ -10,7 +10,7 @@ from dash.exceptions import PreventUpdate
 from dash import ctx, dcc, html
 
 try:
-    from datetime import datetime, timezone
+    from datetime import datetime
     from dataclasses import asdict
     from requests import HTTPError
     import json
@@ -488,6 +488,112 @@ def check_sdk_authentication(n_intervals):
     )
 
 
+@app.callback(
+    [
+        Output("div-lookup-status-text", "children"),
+        Output("div-lookup-status-text", "style"),
+        Output("div-lookup-status-text", "hidden"),
+    ],
+    [Input("div-lookup-status-text", "children")],
+    prevent_initial_call=True,
+)
+def do_idp_lookup(children):
+    if children is None:
+        raise PreventUpdate
+
+    client = get_atlas_client()
+
+    federation_id = get_cookie("saml-reader-federation-id", decrypt=False)
+
+    result = client.get(
+        client.api_base_url + f"federationSettings/{federation_id}/identityProviders"
+    )
+
+    if not result.ok:
+        return (
+            html.P(f"Looking up federation {federation_id}...not found"),
+            {"color": "red"},
+            False,
+        )
+
+    idps = [
+        {"label": f'{x["displayName"]} ({x["oktaIdpId"]})', "value": json.dumps(x)}
+        for x in result.json()["results"]
+        if x["protocol"] == "SAML"
+    ]
+
+    if not idps:
+        return (
+            html.P(f"Looking up federation {federation_id}...no SAML IdPs found!"),
+            {"color": "orange"},
+            False,
+        )
+
+    return (
+        [
+            html.P(
+                f"Looking up federation {federation_id}...found!",
+                style={"color": "green"},
+            ),
+            html.Label(
+                "Configured IdPs",
+                style={
+                    "width": "30%",
+                    "display": "inline-block",
+                    "vertical-align": "middle",
+                },
+            ),
+            dcc.Dropdown(
+                id="idp-selection-dropdown",
+                options=idps,
+                placeholder="Select IdP",
+                style={
+                    "width": "300px",
+                    "display": "inline-block",
+                    "vertical-align": "middle",
+                },
+            ),
+        ],
+        None,
+        False,
+    )
+
+
+@app.callback(
+    [
+        Output("compare-audience", "value"),
+        Output("compare-acs", "value"),
+        Output("compare-issuer", "value"),
+        Output("compare-encryption", "value"),
+        Output("compare-cert-expiration", "date"),
+        Output("compare-domain-list", "value"),
+    ],
+    [Input("idp-selection-dropdown", "value")],
+    prevent_initial_call=True,
+)
+def set_comparison_values_for_selection_idp(value):
+    if value is None:
+        raise PreventUpdate
+
+    idp = json.loads(value)
+
+    cert_info = idp.get("pemFileInfo", {}).get("certificates", [])
+    if not cert_info:
+        cert_expiration = ""
+    else:
+        cert_expiration = datetime.strptime(
+            cert_info[0]["notAfter"], "%Y-%m-%dT%H:%M:%SZ"
+        ).strftime("%Y-%m-%d")
+    return (
+        idp.get("audienceUri", ""),
+        idp.get("acsUrl", ""),
+        idp.get("issuerUri", ""),
+        idp.get("responseSignatureAlgorithm", ""),
+        cert_expiration,
+        idp.get("associatedDomains", []),
+    )
+
+
 def get_atlas_client() -> PublicV2ApiClient | None:
     token = read_token_from_cookie()
     if not token:
@@ -505,29 +611,6 @@ def get_atlas_client() -> PublicV2ApiClient | None:
 
     write_token_to_cookie(client.profile.token)
     return client
-
-
-@app.callback(
-    [
-        Output("lookup-status-text", "children"),
-        Output("lookup-status-text", "style"),
-        Output("lookup-status-text", "hidden"),
-    ],
-    [Input("lookup-status-text", "children")],
-    [],
-)
-def lookup_idps(status_text):
-    """Remove group from the list when it is unchecked.
-
-    Args:
-        checked_items (`list` of `basestring`): list of groups currently checked
-
-    Returns:
-        `list` of `dict`: updated list of groups in checklist
-    """
-    if status_text is None:
-        raise PreventUpdate
-    return "Got the callback", None, False
 
 
 def get_cookie(name: str, decrypt: bool = True) -> str | None:
@@ -568,9 +651,7 @@ def read_token_from_cookie() -> Token | None:
     if not token_json:
         return None
     token_dict = json.loads(token_json)
-    token_dict["issue_time"] = datetime.fromtimestamp(
-        token_dict["issue_time"], tz=timezone.utc
-    )
+    token_dict["issue_time"] = datetime.fromtimestamp(token_dict["issue_time"])
     return Token(**token_dict)
 
 
@@ -590,7 +671,5 @@ def read_device_code_from_cookie() -> DeviceCode | None:
     if not dc_json:
         return None
     dc_dict = json.loads(dc_json)
-    dc_dict["issue_time"] = datetime.fromtimestamp(
-        dc_dict["issue_time"], tz=timezone.utc
-    )
+    dc_dict["issue_time"] = datetime.fromtimestamp(dc_dict["issue_time"])
     return DeviceCode(**dc_dict)
