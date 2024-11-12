@@ -160,21 +160,37 @@ def build_layout():
                         value="",
                         id="federation-url",
                         style={
-                            "width": "300px",
+                            "width": "250px",
                             "display": "inline-block",
                             "vertical-align": "middle",
                         },
                     ),
                     html.Button(
-                        "Go",
+                        "Get IdPs",
                         id="submit-lookup-idp",
                         style={"display": "inline-block", "vertical-align": "middle"},
                     ),
+                    html.Div(
+                        id="div-auth-required-text",
+                        hidden=True,
+                    ),
+                    html.P(
+                        id="div-lookup-status-text",
+                        hidden=True,
+                    ),
+                    html.Div(id="div-idp-selection", hidden=True),
+                    # dcc.Dropdown(
+                    #     id="idp-selection",
+                    #     options=[],
+                    #     placeholder="Select IdP",
+                    #     style={
+                    #         "width": "150px",
+                    #         "display": "inline-block",
+                    #         "margin-right": "10px",
+                    #         "vertical-align": "middle",
+                    #         "hidden": True,
+                    #     },
                 ]
-            ),
-            html.P(
-                id="lookup-status-text",
-                hidden=True,
             ),
         ]
     )

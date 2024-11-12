@@ -2,14 +2,20 @@
 
 from datetime import datetime
 import re
+from typing import TYPE_CHECKING
+import json
+from datetime import datetime, timezone
+from dataclasses import asdict
 
 import flask
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
-from dash import ctx
+from dash import ctx, dcc, html
 
 try:
     from atlas_sdk.client.api import PublicV2ApiClient
+    from atlas_sdk.auth.profile import Profile
+    from atlas_sdk.auth.oauth import Token, DeviceCode
 
     ATLAS_SDK_AVAILABLE = True
 except ImportError:
@@ -330,14 +336,17 @@ def remove_group_from_list(checked_items):
 
 @app.callback(
     [
-        Output("lookup-status-text", "children"),
-        Output("lookup-status-text", "style"),
-        Output("lookup-status-text", "hidden"),
+        Output("div-lookup-status-text", "children"),
+        Output("div-lookup-status-text", "style"),
+        Output("div-lookup-status-text", "hidden"),
+        Output("div-auth-required-text", "children"),
+        Output("div-auth-required-text", "style"),
+        Output("div-auth-required-text", "hidden"),
     ],
     [Input("submit-lookup-idp", "n_clicks")],
     [State("federation-url", "value")],
 )
-def validate_url_and_submit(n_clicks, url_value):
+def validate_url_and_authenticate_sdk(n_clicks, url_value):
     """Remove group from the list when it is unchecked.
 
     Args:
@@ -359,32 +368,183 @@ def validate_url_and_submit(n_clicks, url_value):
         r"^\s*https://cloud.mongodb(gov)?.com/v2#/federation/(?P<id>[a-z0-9]{24})",
         url_value,
     )
-    if not rx:
+    if not rx or not rx.group("id"):
         return "Invalid URL", {"color": "red"}, False
 
     federation_id = rx.group("id")
 
-    if flask.request:
-        state = flask.request.cookies.get("saml-reader-cs", "")
-        if not state or state != CRYPTO_STATE:
-            old_cookie = ""
-        else:
-            old_cookie = flask.request.cookies.get("saml-reader-fed-id", "")
-            old_cookie = decrypt_string(old_cookie)
-
-    r: flask.Response = ctx.response
-    r.set_cookie(
-        "saml-reader-fed-id",
-        encrypt_string(federation_id),
-        max_age=600,
-        secure=True,
-        httponly=True,
-    )
-    r.set_cookie(
+    set_cookie(
         "saml-reader-cs",
         CRYPTO_STATE,
         max_age=600,
         secure=False,
         httponly=True,
     )
-    return f"Federation ID {federation_id}\nOld ID: {old_cookie}", None, False
+    set_cookie(
+        "saml-reader-federation-id",
+        federation_id,
+        max_age=600,
+        secure=False,
+        httponly=True,
+    )
+
+    client = get_atlas_client()
+    if client:
+        return (
+            dcc.Markdown(f"Looking up federation {federation_id}..."),
+            None,
+            False,
+            None,
+            None,
+            True,
+        )
+
+    client = PublicV2ApiClient(auth_type="oauth", open_browser=False)
+    dc = client._auth_config.request_code()
+    dc_dict = asdict(dc)
+    dc_dict["issue_time"] = dc_dict["issue_time"].timestamp()
+    set_cookie(
+        "saml-reader-device-code",
+        json.dumps(dc_dict),
+        max_age=600,
+        secure=True,
+        httponly=True,
+    )
+    return (
+        None,
+        None,
+        True,
+        dcc.Markdown(f"""
+        Go to [this link]({dc.verification_uri}) to authenticate.
+        Enter code **{dc.user_code}** to authorize this client.
+        """),
+        None,
+        False,
+    )
+
+
+def get_atlas_client() -> PublicV2ApiClient | None:
+    token_json = get_cookie("saml-reader-atlas-token")
+
+    if not token_json:
+        return None
+
+    token_dict = json.loads(token_json)
+
+    client = PublicV2ApiClient(
+        profile=Profile("saml-reader", token=Token(**token_dict)),
+        auth_type="oauth",
+        open_browser=False,
+    )
+
+    if not client.test_auth():
+        return None
+
+    write_token_to_cookie(client.profile.token)
+    return client
+
+
+@app.callback(
+    [
+        Output("lookup-status-text", "children"),
+        Output("lookup-status-text", "style"),
+        Output("lookup-status-text", "hidden"),
+        Output("auth-required-text", "children"),
+        Output("auth-required-text", "style"),
+        Output("auth-required-text", "hidden"),
+    ],
+    [Input("auth-required-text", "children")],
+    prevent_initial_call=True,
+)
+def check_for_auth(children):
+    """Remove group from the list when it is unchecked.
+
+    Args:
+        checked_items (`list` of `basestring`): list of groups currently checked
+
+    Returns:
+        `list` of `dict`: updated list of groups in checklist
+    """
+    if children is None:
+        raise PreventUpdate
+
+    dc_dict = json.loads(get_cookie("saml-reader-device-code"))
+    dc_dict["issue_time"] = datetime.fromtimestamp(dc_dict["issue_time"])
+    dc = DeviceCode(**dc_dict)
+    client = PublicV2ApiClient(
+        auth_type="oauth",
+        open_browser=False,
+    )
+    try:
+        token = client._auth_config.poll_token(dc)
+    except TimeoutError:
+        return (
+            None,
+            None,
+            True,
+            "Authentication timed out. Try again.",
+            {"color": "red"},
+            False,
+        )
+    write_token_to_cookie(token)
+    federation_id = get_cookie("saml-reader-federation-id", decrypt=False)
+    return (
+        f"Authentication succeeded. Polling for federation ID {federation_id}",
+        {"color": "green"},
+        False,
+        None,
+        None,
+        True,
+    )
+
+
+@app.callback(
+    [
+        Output("lookup-status-text", "children"),
+        Output("lookup-status-text", "style"),
+        Output("lookup-status-text", "hidden"),
+    ],
+    [Input("lookup-status-text", "children")],
+    [],
+)
+def lookup_idps(status_text):
+    """Remove group from the list when it is unchecked.
+
+    Args:
+        checked_items (`list` of `basestring`): list of groups currently checked
+
+    Returns:
+        `list` of `dict`: updated list of groups in checklist
+    """
+    if status_text is None:
+        raise PreventUpdate
+    return "Got the callback", None, False
+
+
+def get_cookie(name: str, decrypt: bool = True) -> str:
+    data = flask.request.cookies.get(name, None)
+    if not data:
+        return None
+    if decrypt:
+        return decrypt_string(data)
+    return data
+
+
+if TYPE_CHECKING:
+    set_cookie = flask.Response().set_cookie
+else:
+
+    def set_cookie(name: str, value: str, /, secure: bool = False, **kwargs) -> str:
+        if secure:
+            value = encrypt_string(value)
+        ctx.response.set_cookie(name, value, secure=secure, **kwargs)
+
+
+def write_token_to_cookie(token: Token):
+    set_cookie(
+        "saml-reader-atlas-token",
+        json.dumps(asdict(token)),
+        max_age=600,
+        secure=True,
+        httponly=True,
+    )
