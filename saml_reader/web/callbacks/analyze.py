@@ -3,9 +3,6 @@
 from datetime import datetime
 import re
 from typing import TYPE_CHECKING
-import json
-from datetime import datetime, timezone
-from dataclasses import asdict
 
 import flask
 from dash.dependencies import Input, Output, State
@@ -13,11 +10,19 @@ from dash.exceptions import PreventUpdate
 from dash import ctx, dcc, html
 
 try:
+    from datetime import datetime, timezone
+    from dataclasses import asdict
+    from requests import HTTPError
+    import json
+
     from atlas_sdk.client.api import PublicV2ApiClient
     from atlas_sdk.auth.profile import Profile
     from atlas_sdk.auth.oauth import Token, DeviceCode
 
+    from saml_reader import __version__
+
     ATLAS_SDK_AVAILABLE = True
+    USER_AGENT = f"saml-reader/{__version__}"
 except ImportError:
     ATLAS_SDK_AVAILABLE = False
 
@@ -29,6 +34,7 @@ from saml_reader.web.callbacks.crypto import (
     decrypt_string,
     CRYPTO_STATE,
 )
+from cryptography.fernet import InvalidToken
 
 
 def submit_analysis_to_backend(data_type, saml_data, comparison_data):
@@ -376,14 +382,13 @@ def validate_url_and_authenticate_sdk(n_clicks, url_value):
     set_cookie(
         "saml-reader-cs",
         CRYPTO_STATE,
-        max_age=600,
+        max_age=0,
         secure=False,
         httponly=True,
     )
     set_cookie(
         "saml-reader-federation-id",
         federation_id,
-        max_age=600,
         secure=False,
         httponly=True,
     )
@@ -391,50 +396,108 @@ def validate_url_and_authenticate_sdk(n_clicks, url_value):
     client = get_atlas_client()
     if client:
         return (
-            dcc.Markdown(f"Looking up federation {federation_id}..."),
-            None,
+            html.P(f"Looking up federation {federation_id}"),
+            {"color": "black"},
             False,
             None,
             None,
             True,
         )
 
-    client = PublicV2ApiClient(auth_type="oauth", open_browser=False)
-    dc = client._auth_config.request_code()
-    dc_dict = asdict(dc)
-    dc_dict["issue_time"] = dc_dict["issue_time"].timestamp()
-    set_cookie(
-        "saml-reader-device-code",
-        json.dumps(dc_dict),
-        max_age=600,
-        secure=True,
-        httponly=True,
+    client = PublicV2ApiClient(
+        auth_type="oauth", open_browser=False, user_agent=USER_AGENT
     )
+    dc: DeviceCode = client._auth_config.request_code()
+    write_device_code_to_cookie(dc)
     return (
         None,
         None,
         True,
-        dcc.Markdown(f"""
-        Go to [this link]({dc.verification_uri}) to authenticate.
-        Enter code **{dc.user_code}** to authorize this client.
-        """),
+        [
+            html.P(
+                [
+                    "Go to ",
+                    html.A(
+                        "this link",
+                        href=dc.verification_uri,
+                        target="_blank",
+                        rel="noopener noreferrer",
+                    ),
+                    " to authenticate.",
+                    html.Br(),
+                    "Enter code ",
+                    html.B(dc.user_code),
+                    " to authorize this client.",
+                ]
+            ),
+            dcc.Interval(
+                id="check-auth-periodically",
+                interval=dc.interval * 1000,
+                max_intervals=(dc.expires_in // dc.interval) + 1,
+                disabled=False,
+            ),
+        ],
         None,
         False,
     )
 
 
-def get_atlas_client() -> PublicV2ApiClient | None:
-    token_json = get_cookie("saml-reader-atlas-token")
+@app.callback(
+    [
+        Output("div-lookup-status-text", "children"),
+        Output("div-lookup-status-text", "style"),
+        Output("div-lookup-status-text", "hidden"),
+        Output("div-auth-required-text", "children"),
+        Output("div-auth-required-text", "style"),
+        Output("div-auth-required-text", "hidden"),
+    ],
+    [Input("check-auth-periodically", "n_intervals")],
+    prevent_initial_call=True,
+)
+def check_sdk_authentication(n_intervals):
+    if n_intervals is None:
+        raise PreventUpdate
 
-    if not token_json:
+    dc = read_device_code_from_cookie()
+    client = PublicV2ApiClient(
+        auth_type="oauth", open_browser=False, user_agent=USER_AGENT
+    )
+    try:
+        token = client._auth_config.get_token(dc)
+    except HTTPError:
+        return (
+            None,
+            None,
+            True,
+            html.P("Authentication timed out. Please try again."),
+            {"color": "red"},
+            False,
+        )
+    if token is None:
+        raise PreventUpdate
+
+    write_token_to_cookie(token)
+    federation_id = get_cookie("saml-reader-federation-id", decrypt=False)
+    return (
+        html.P(f"Looking up federation {federation_id}"),
+        {"color": "black"},
+        False,
+        html.P("Authentication succeeded."),
+        {"color": "green"},
+        False,
+    )
+
+
+def get_atlas_client() -> PublicV2ApiClient | None:
+    token = read_token_from_cookie()
+    if not token:
         return None
 
-    token_dict = json.loads(token_json)
-
     client = PublicV2ApiClient(
-        profile=Profile("saml-reader", token=Token(**token_dict)),
+        profile=Profile("saml-reader", token=token),
         auth_type="oauth",
         open_browser=False,
+        user_agent=USER_AGENT,
     )
 
     if not client.test_auth():
@@ -442,60 +505,6 @@ def get_atlas_client() -> PublicV2ApiClient | None:
 
     write_token_to_cookie(client.profile.token)
     return client
-
-
-@app.callback(
-    [
-        Output("lookup-status-text", "children"),
-        Output("lookup-status-text", "style"),
-        Output("lookup-status-text", "hidden"),
-        Output("auth-required-text", "children"),
-        Output("auth-required-text", "style"),
-        Output("auth-required-text", "hidden"),
-    ],
-    [Input("auth-required-text", "children")],
-    prevent_initial_call=True,
-)
-def check_for_auth(children):
-    """Remove group from the list when it is unchecked.
-
-    Args:
-        checked_items (`list` of `basestring`): list of groups currently checked
-
-    Returns:
-        `list` of `dict`: updated list of groups in checklist
-    """
-    if children is None:
-        raise PreventUpdate
-
-    dc_dict = json.loads(get_cookie("saml-reader-device-code"))
-    dc_dict["issue_time"] = datetime.fromtimestamp(dc_dict["issue_time"])
-    dc = DeviceCode(**dc_dict)
-    client = PublicV2ApiClient(
-        auth_type="oauth",
-        open_browser=False,
-    )
-    try:
-        token = client._auth_config.poll_token(dc)
-    except TimeoutError:
-        return (
-            None,
-            None,
-            True,
-            "Authentication timed out. Try again.",
-            {"color": "red"},
-            False,
-        )
-    write_token_to_cookie(token)
-    federation_id = get_cookie("saml-reader-federation-id", decrypt=False)
-    return (
-        f"Authentication succeeded. Polling for federation ID {federation_id}",
-        {"color": "green"},
-        False,
-        None,
-        None,
-        True,
-    )
 
 
 @app.callback(
@@ -521,12 +530,15 @@ def lookup_idps(status_text):
     return "Got the callback", None, False
 
 
-def get_cookie(name: str, decrypt: bool = True) -> str:
+def get_cookie(name: str, decrypt: bool = True) -> str | None:
     data = flask.request.cookies.get(name, None)
     if not data:
         return None
     if decrypt:
-        return decrypt_string(data)
+        try:
+            return decrypt_string(data)
+        except InvalidToken:
+            return None
     return data
 
 
@@ -541,10 +553,44 @@ else:
 
 
 def write_token_to_cookie(token: Token):
+    token_dict = asdict(token)
+    token_dict["issue_time"] = token_dict["issue_time"].timestamp()
     set_cookie(
         "saml-reader-atlas-token",
-        json.dumps(asdict(token)),
-        max_age=600,
+        json.dumps(token_dict),
         secure=True,
         httponly=True,
     )
+
+
+def read_token_from_cookie() -> Token | None:
+    token_json = get_cookie("saml-reader-atlas-token")
+    if not token_json:
+        return None
+    token_dict = json.loads(token_json)
+    token_dict["issue_time"] = datetime.fromtimestamp(
+        token_dict["issue_time"], tz=timezone.utc
+    )
+    return Token(**token_dict)
+
+
+def write_device_code_to_cookie(dc: DeviceCode):
+    dc_dict = asdict(dc)
+    dc_dict["issue_time"] = dc_dict["issue_time"].timestamp()
+    set_cookie(
+        "saml-reader-device-code",
+        json.dumps(dc_dict),
+        secure=True,
+        httponly=True,
+    )
+
+
+def read_device_code_from_cookie() -> DeviceCode | None:
+    dc_json = get_cookie("saml-reader-device-code")
+    if not dc_json:
+        return None
+    dc_dict = json.loads(dc_json)
+    dc_dict["issue_time"] = datetime.fromtimestamp(
+        dc_dict["issue_time"], tz=timezone.utc
+    )
+    return DeviceCode(**dc_dict)

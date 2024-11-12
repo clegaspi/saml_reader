@@ -174,7 +174,7 @@ def build_layout():
                         id="div-auth-required-text",
                         hidden=True,
                     ),
-                    html.P(
+                    html.Div(
                         id="div-lookup-status-text",
                         hidden=True,
                     ),
