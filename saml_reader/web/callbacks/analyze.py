@@ -340,10 +340,8 @@ def remove_group_from_list(checked_items):
 @app.callback(
     [
         Output("div-lookup-status-text", "children"),
-        Output("div-lookup-status-text", "style"),
         Output("div-lookup-status-text", "hidden"),
         Output("div-auth-required-text", "children"),
-        Output("div-auth-required-text", "style"),
         Output("div-auth-required-text", "hidden"),
     ],
     [Input("submit-lookup-idp", "n_clicks")],
@@ -360,8 +358,10 @@ def validate_url_and_authenticate_sdk(n_clicks, url_value):
     """
     if not ATLAS_SDK_AVAILABLE:
         return (
-            "Atlas SDK not available. Cannot use this feature",
-            {"color": "red"},
+            html.P(
+                "Atlas SDK not available. Cannot use this feature",
+                style={"color": "red"},
+            ),
             False,
         )
     if n_clicks is None or not url_value:
@@ -393,10 +393,8 @@ def validate_url_and_authenticate_sdk(n_clicks, url_value):
     client = get_atlas_client()
     if client:
         return (
-            html.P(f"Looking up federation {federation_id}"),
-            {"color": "black"},
+            html.P(f"Looking up federation {federation_id}", style={"color": "black"}),
             False,
-            None,
             None,
             True,
         )
@@ -407,7 +405,6 @@ def validate_url_and_authenticate_sdk(n_clicks, url_value):
     dc: DeviceCode = client._auth_config.request_code()
     write_device_code_to_cookie(dc)
     return (
-        None,
         None,
         True,
         [
@@ -434,7 +431,6 @@ def validate_url_and_authenticate_sdk(n_clicks, url_value):
                 disabled=False,
             ),
         ],
-        None,
         False,
     )
 
@@ -442,10 +438,8 @@ def validate_url_and_authenticate_sdk(n_clicks, url_value):
 @app.callback(
     [
         Output("div-lookup-status-text", "children"),
-        Output("div-lookup-status-text", "style"),
         Output("div-lookup-status-text", "hidden"),
         Output("div-auth-required-text", "children"),
-        Output("div-auth-required-text", "style"),
         Output("div-auth-required-text", "hidden"),
     ],
     [Input("check-auth-periodically", "n_intervals")],
@@ -464,10 +458,10 @@ def check_sdk_authentication(n_intervals):
     except HTTPError:
         return (
             None,
-            None,
             True,
-            html.P("Authentication timed out. Please try again."),
-            {"color": "red"},
+            html.P(
+                "Authentication timed out. Please try again.", style={"color": "red"}
+            ),
             False,
         )
     if token is None:
@@ -476,11 +470,9 @@ def check_sdk_authentication(n_intervals):
     write_token_to_cookie(token)
     federation_id = get_cookie("saml-reader-federation-id", decrypt=False)
     return (
-        html.P(f"Looking up federation {federation_id}"),
-        {"color": "black"},
+        html.P(f"Looking up federation {federation_id}", style={"color": "black"}),
         False,
-        html.P("Authentication succeeded."),
-        {"color": "green"},
+        html.P("Authentication succeeded.", style={"color": "green"}),
         False,
     )
 
@@ -488,7 +480,6 @@ def check_sdk_authentication(n_intervals):
 @app.callback(
     [
         Output("div-lookup-status-text", "children"),
-        Output("div-lookup-status-text", "style"),
         Output("div-lookup-status-text", "hidden"),
     ],
     [Input("div-lookup-status-text", "children")],
@@ -508,8 +499,10 @@ def do_idp_lookup(children):
 
     if not result.ok:
         return (
-            html.P(f"Looking up federation {federation_id}...not found"),
-            {"color": "red"},
+            html.P(
+                f"Looking up federation {federation_id}...not found",
+                style={"color": "red"},
+            ),
             False,
         )
 
@@ -521,8 +514,10 @@ def do_idp_lookup(children):
 
     if not idps:
         return (
-            html.P(f"Looking up federation {federation_id}...no SAML IdPs found!"),
-            {"color": "orange"},
+            html.P(
+                f"Looking up federation {federation_id}...no SAML IdPs found!",
+                {"color": "orange"},
+            ),
             False,
         )
 
@@ -551,7 +546,6 @@ def do_idp_lookup(children):
                 },
             ),
         ],
-        None,
         False,
     )
 

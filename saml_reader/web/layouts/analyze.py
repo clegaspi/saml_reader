@@ -178,7 +178,6 @@ def build_layout():
                         id="div-lookup-status-text",
                         hidden=True,
                     ),
-                    html.Div(id="div-idp-selection", hidden=True),
                 ]
             ),
         ]
