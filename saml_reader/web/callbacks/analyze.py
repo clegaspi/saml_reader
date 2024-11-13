@@ -348,13 +348,15 @@ def remove_group_from_list(checked_items):
     [State("federation-url", "value")],
 )
 def validate_url_and_authenticate_sdk(n_clicks, url_value):
-    """Remove group from the list when it is unchecked.
+    """Parse the federation URL and determine if app has a valid Atlas token
 
     Args:
-        checked_items (`list` of `basestring`): list of groups currently checked
+        n_clicks (int | None): number of times the button has been clicked
+        url_value (str): contents of the URL text box
 
     Returns:
-        `list` of `dict`: updated list of groups in checklist
+        tuple[Any, bool, Any, bool]: states of the divs that prompt for auth or
+        the status of the lookup
     """
     if not ATLAS_SDK_AVAILABLE:
         return (
