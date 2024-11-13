@@ -629,7 +629,7 @@ if TYPE_CHECKING:
     set_cookie = flask.Response().set_cookie
 else:
 
-    def set_cookie(name: str, value: str, /, secure: bool = False, **kwargs) -> str:
+    def set_cookie(name: str, value: str, /, secure: bool = False, **kwargs):
         if secure:
             value = encrypt_string(value)
         ctx.response.set_cookie(name, value, secure=secure, **kwargs)
