@@ -11,6 +11,10 @@ import flask
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 from dash import ctx, dcc, html
+from atlas_sdk.client.api import PublicV2ApiClient
+from atlas_sdk.auth.profile import Profile
+from atlas_sdk.auth.oauth import Token, DeviceCode
+from cryptography.fernet import InvalidToken
 
 from saml_reader import __version__
 from saml_reader.validation.input_validation import MongoFederationConfig
@@ -21,16 +25,7 @@ from saml_reader.web.callbacks.crypto import (
     decrypt_string,
     CRYPTO_STATE,
 )
-from cryptography.fernet import InvalidToken
 
-try:
-    from atlas_sdk.client.api import PublicV2ApiClient
-    from atlas_sdk.auth.profile import Profile
-    from atlas_sdk.auth.oauth import Token, DeviceCode
-
-    ATLAS_SDK_AVAILABLE = True
-except ImportError:
-    ATLAS_SDK_AVAILABLE = False
 USER_AGENT = f"saml-reader/{__version__}"
 
 
@@ -358,14 +353,6 @@ def validate_url_and_authenticate_sdk(n_clicks, url_value):
         tuple[Any, bool, Any, bool]: states of the divs that prompt for auth or
         the status of the lookup
     """
-    if not ATLAS_SDK_AVAILABLE:
-        return (
-            html.P(
-                "Atlas SDK not available. Cannot use this feature",
-                style={"color": "red"},
-            ),
-            False,
-        )
     if n_clicks is None or not url_value:
         raise PreventUpdate
 
