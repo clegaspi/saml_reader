@@ -2,7 +2,7 @@
 
 from datetime import datetime
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from dataclasses import asdict
 from requests import HTTPError
 import json
@@ -342,12 +342,14 @@ def remove_group_from_list(checked_items):
     [Input("submit-lookup-idp", "n_clicks")],
     [State("federation-url", "value")],
 )
-def validate_url_and_authenticate_sdk(n_clicks, url_value):
+def validate_url_and_authenticate_sdk(
+    n_clicks: int | None, url_value: str | None
+) -> tuple[Any, bool, Any, bool]:
     """Parse the federation URL and determine if app has a valid Atlas token
 
     Args:
         n_clicks (int | None): number of times the button has been clicked
-        url_value (str): contents of the URL text box
+        url_value (str | None): contents of the URL text box
 
     Returns:
         tuple[Any, bool, Any, bool]: states of the divs that prompt for auth or
@@ -434,7 +436,17 @@ def validate_url_and_authenticate_sdk(n_clicks, url_value):
     [Input("check-auth-periodically", "n_intervals")],
     prevent_initial_call=True,
 )
-def check_sdk_authentication(n_intervals):
+def check_sdk_authentication(n_intervals: int | None) -> tuple[Any, bool, Any, bool]:
+    """Periodically check if the user has authenticated to the Atlas CLI
+    and the app can get a token.
+
+    Args:
+        n_intervals (int | None): number of times this callback has been repeated
+
+    Returns:
+        tuple[Any, bool, Any, bool]: states of the divs that prompt for auth or
+        the status of the lookup
+    """
     if n_intervals is None:
         raise PreventUpdate
 
@@ -474,7 +486,16 @@ def check_sdk_authentication(n_intervals):
     [Input("div-lookup-status-text", "children")],
     prevent_initial_call=True,
 )
-def do_idp_lookup(children):
+def do_idp_lookup(children: Any) -> tuple[Any, bool]:
+    """Look up the federation settings from Atlas, and populate
+    a dropdown if found.
+
+    Args:
+        children (Any): the contents of the lookup div
+
+    Returns:
+        tuple[Any, bool]: status of the lookup div and if it is hidden
+    """
     if children is None:
         raise PreventUpdate
 
@@ -557,7 +578,16 @@ def do_idp_lookup(children):
     [Input("idp-selection-dropdown", "value")],
     prevent_initial_call=True,
 )
-def set_comparison_values_for_selection_idp(value):
+def set_comparison_values_for_selection_idp(value: str | None) -> tuple[str, ...]:
+    """Set comparison values to those of chosen identity provider
+
+    Args:
+        value (str | None): value of the selected dropdown item, which is the JSON
+            string of the IdP data
+
+    Returns:
+        tuple[str, ...]: comparison values
+    """
     if value is None:
         raise PreventUpdate
 
@@ -581,6 +611,13 @@ def set_comparison_values_for_selection_idp(value):
 
 
 def get_atlas_client() -> PublicV2ApiClient | None:
+    """Get Atlas API client with token read from cookie. Also writes a new
+    token to the cookie in case it was refreshed.
+
+    Returns:
+        PublicV2ApiClient | None: If token is valid, returns the client,
+        otherwise returns None to indicate the user needs to reauthenticate.
+    """
     token = read_token_from_cookie()
     if not token:
         return None
@@ -600,6 +637,15 @@ def get_atlas_client() -> PublicV2ApiClient | None:
 
 
 def get_cookie(name: str, decrypt: bool = True) -> str | None:
+    """Get a cookie from the request.
+
+    Args:
+        name (str): name of the cookie
+        decrypt (bool, optional): Decrypts the cookie value. Defaults to True.
+
+    Returns:
+        str | None: value of the cookie, if available, otherwise None
+    """
     data = flask.request.cookies.get(name, None)
     if not data:
         return None
@@ -616,12 +662,26 @@ if TYPE_CHECKING:
 else:
 
     def set_cookie(name: str, value: str, /, secure: bool = False, **kwargs):
+        """Set a cookie on the response.
+
+        Args:
+            name (str): name of the cookie
+            value (str): value of the cookie
+            secure (bool, optional): whether the cookie will be marked as secure.
+                If True, the value will be encrypted. Defaults to True.
+            **kwargs: other configuration values for the cookie
+        """
         if secure:
             value = encrypt_string(value)
         ctx.response.set_cookie(name, value, secure=secure, **kwargs)
 
 
 def write_token_to_cookie(token: Token):
+    """Write the OAuth token to a cookie in the response.
+
+    Args:
+        token (Token): the token object
+    """
     token_dict = asdict(token)
     token_dict["issue_time"] = token_dict["issue_time"].timestamp()
     set_cookie(
@@ -633,6 +693,12 @@ def write_token_to_cookie(token: Token):
 
 
 def read_token_from_cookie() -> Token | None:
+    """Read the OAuth token from a cookie in the request.
+
+    Returns:
+        Token: the token object, if present and decryptable,
+        otherwise None
+    """
     token_json = get_cookie("saml-reader-atlas-token")
     if not token_json:
         return None
@@ -642,6 +708,11 @@ def read_token_from_cookie() -> Token | None:
 
 
 def write_device_code_to_cookie(dc: DeviceCode):
+    """Write the OAuth device code to a cookie in the response.
+
+    Args:
+        dc (DeviceCode): the device code object
+    """
     dc_dict = asdict(dc)
     dc_dict["issue_time"] = dc_dict["issue_time"].timestamp()
     set_cookie(
@@ -653,6 +724,12 @@ def write_device_code_to_cookie(dc: DeviceCode):
 
 
 def read_device_code_from_cookie() -> DeviceCode | None:
+    """Read the OAuth device code from a cookie in the request.
+
+    Returns:
+        DeviceCode: the device code object, if present and decryptable,
+        otherwise None
+    """
     dc_json = get_cookie("saml-reader-device-code")
     if not dc_json:
         return None
