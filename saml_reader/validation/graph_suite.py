@@ -15,6 +15,7 @@ class TestDefinition:
     """
     Defines a single validation test to be run, ideally run as part of a suite.
     """
+
     def __init__(self, title, test_function, dependencies=None, required_context=None):
         """
         Construct a validation test.
@@ -44,7 +45,9 @@ class TestDefinition:
                 self.dependencies[dependency] = TEST_PASS
             elif isinstance(dependency, tuple):
                 if len(dependency) != 2:
-                    raise ValueError("Dependency must be a 2-length tuple, str, or TestDefinition")
+                    raise ValueError(
+                        "Dependency must be a 2-length tuple, str, or TestDefinition"
+                    )
                 test, required_result = dependency
                 if required_result not in (TEST_PASS, TEST_FAIL):
                     raise ValueError("Dependency result must be TEST_PASS or TEST_FAIL")
@@ -120,7 +123,10 @@ class TestDefinition:
             if not context:
                 raise ValueError("No context provided when context values required")
             if any(x not in context for x in self.required_context):
-                missing_context = self.required_context - self.required_context.intersection(set(context.keys()))
+                missing_context = (
+                    self.required_context
+                    - self.required_context.intersection(set(context.keys()))
+                )
                 raise ValueError(f"Missing context values for test: {missing_context}")
 
         # Run the test with required context
@@ -178,6 +184,7 @@ class _FailedTest(TestDefinition):
     the failure of another test, and that test passes. Fails automatically when run
     to block advancement.
     """
+
     def __init__(self, test_to_monitor):
         """
         Create a blocker node for required test failures.
@@ -189,7 +196,7 @@ class _FailedTest(TestDefinition):
         super().__init__(
             f"Blocker for tests depending on failure of: {test_to_monitor}",
             lambda x: TEST_FAIL,
-            dependencies=[test_to_monitor]
+            dependencies=[test_to_monitor],
         )
 
 
@@ -197,6 +204,7 @@ class TestSuite:
     """
     A collection of tests to run as a group. Manages test dependencies.
     """
+
     def __init__(self):
         """
         Construct the suite.
@@ -215,9 +223,11 @@ class TestSuite:
         Returns:
             (bool) True if all context requirements are satisfied, and False otherwise
         """
-        return all(context_value in self._context
-                   for test in self._tests
-                   for context_value in test.required_context)
+        return all(
+            context_value in self._context
+            for test in self._tests
+            for context_value in test.required_context
+        )
 
     def all_dependent_test_in_suite(self):
         """
@@ -226,9 +236,11 @@ class TestSuite:
         Returns:
             (bool) True if all dependency tests are in the suite, and False otherwise
         """
-        return all(dependency in self._tests
-                   for test in self._tests
-                   for dependency in test.dependencies.keys())
+        return all(
+            dependency in self._tests
+            for test in self._tests
+            for dependency in test.dependencies.keys()
+        )
 
     def add_test(self, test, replace=True):
         """
@@ -320,11 +332,12 @@ class TestSuite:
                     # the dependent test fails to allow child tests to run.
                     parent_node_name = "FAIL_" + str(dependency)
                     self._test_graph.add_node(
-                        parent_node_name,
-                        test_object=_FailedTest(dependency)
+                        parent_node_name, test_object=_FailedTest(dependency)
                     )
                     # Draw edge from dependent test to blocking node
-                    self._test_graph.add_edge("PASS_" + str(dependency), parent_node_name)
+                    self._test_graph.add_edge(
+                        "PASS_" + str(dependency), parent_node_name
+                    )
                 else:
                     raise ValueError("Invalid required test result!")
                 # Draw edge from dependent test (or blocking node) to current test
@@ -349,11 +362,12 @@ class TestSuite:
         Yields:
             (TestDefinition) test to run
         """
+
         def __yield_tests_rec(graph):
             queue_for_removal = set()
             # Traverse all nodes by all inbound edges in the current view of the graph
             for test_name, n_unmet_dependencies in graph.in_degree:
-                test_object = graph.nodes[test_name]['test_object']
+                test_object = graph.nodes[test_name]["test_object"]
                 if n_unmet_dependencies == 0 and test_object.status == TEST_NOT_RUN:
                     # If there are no unmet dependencies (presence of no inbound edges)
                     # and the test hasn't been run, then send it up to be run.
@@ -379,6 +393,7 @@ class TestSuite:
             # TODO: consider not using recursion as it could get hit recursion depth limit if many
             #       rounds of testing have to be done
             yield from __yield_tests_rec(graph)
+
         # Begin recursion
         yield from __yield_tests_rec(self._test_graph)
 

@@ -2,6 +2,7 @@
 This module implements features related to parsing certificate contents retrieved from
 SAML responses.
 """
+
 from itertools import zip_longest
 
 from cryptography import x509
@@ -13,6 +14,7 @@ class Certificate(object):
     Wrapper around cryptography's x509 parser for PEM certificates with
     helper functions to retrieve relevant data from the certificate
     """
+
     def __init__(self, cert_string):
         """
         Creates certificate object from raw certificate content (without header/footer)
@@ -22,13 +24,19 @@ class Certificate(object):
         """
 
         # This formats the raw certificate string into lines of 64 characters
-        cert_string = cert_string.replace('\n', '')
-        cert_string = "\n".join(["".join(v) for v in zip_longest(*[iter(cert_string)] * 64, fillvalue='')])
+        cert_string = cert_string.replace("\n", "")
+        cert_string = "\n".join(
+            ["".join(v) for v in zip_longest(*[iter(cert_string)] * 64, fillvalue="")]
+        )
         # This adds the header and footer
-        cert_string = '-----BEGIN CERTIFICATE-----\n' + cert_string + \
-                      '\n-----END CERTIFICATE-----'
-        decoded_cert = x509.load_pem_x509_certificate(bytes(cert_string, 'utf-8'),
-                                                      default_backend())
+        cert_string = (
+            "-----BEGIN CERTIFICATE-----\n"
+            + cert_string
+            + "\n-----END CERTIFICATE-----"
+        )
+        decoded_cert = x509.load_pem_x509_certificate(
+            bytes(cert_string, "utf-8"), default_backend()
+        )
         self._certificate = decoded_cert
 
     def get_subject(self, as_string=False):

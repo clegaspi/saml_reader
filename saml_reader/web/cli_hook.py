@@ -24,25 +24,46 @@ def web_cli(cl_args):
     Returns:
         None
     """
-    parser = argparse.ArgumentParser(prog="SAML Reader Web App",
-                                     description='Start the SAML Reader web app '
-                                                 'to analyze and diagnose '
-                                                 'federated authentication issues.')
-    parser.add_argument('--host',
-                        dest='host', action='store', required=False, default="localhost",
-                        help='specify host/IP address where the web app is listening. Default: localhost')
-    parser.add_argument('--port',
-                        dest='port', action='store', required=False, default="8050",
-                        help='specify port where the web app is listening. Default: 8050')
-    parser.add_argument('--keep-alive',
-                        dest='keep_alive', action='store_true', required=False,
-                        help='keep web server running, otherwise web server times out after 30 min')
-    parser.add_argument('--no-open-browser',
-                        dest='no_open_browser', action='store_true', required=False,
-                        help='suppress opening the web browser automatically. Otherwise, the default browser ' + \
-                            'will open automatically to the webpage.')
-    parser.add_argument('--version', action='version',
-                        version=f'%(prog)s {__version__}')
+    parser = argparse.ArgumentParser(
+        prog="SAML Reader Web App",
+        description="Start the SAML Reader web app "
+        "to analyze and diagnose "
+        "federated authentication issues.",
+    )
+    parser.add_argument(
+        "--host",
+        dest="host",
+        action="store",
+        required=False,
+        default="localhost",
+        help="specify host/IP address where the web app is listening. Default: localhost",
+    )
+    parser.add_argument(
+        "--port",
+        dest="port",
+        action="store",
+        required=False,
+        default="8050",
+        help="specify port where the web app is listening. Default: 8050",
+    )
+    parser.add_argument(
+        "--keep-alive",
+        dest="keep_alive",
+        action="store_true",
+        required=False,
+        help="keep web server running, otherwise web server times out after 30 min",
+    )
+    parser.add_argument(
+        "--no-open-browser",
+        dest="no_open_browser",
+        action="store_true",
+        required=False,
+        help="suppress opening the web browser automatically. Otherwise, the default browser "
+        + "will open automatically to the webpage.",
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"%(prog)s {__version__}"
+    )
 
     parsed_args = parser.parse_args(cl_args)
 
@@ -53,26 +74,33 @@ def web_cli(cl_args):
 
     if not parsed_args.no_open_browser:
         Timer(2, partial(webbrowser.open, web_address)).start()
-        print("Browser should open shortly after server starts. If webpage does not load, refresh the page.")
+        print(
+            "Browser should open shortly after server starts. If webpage does not load, refresh the page."
+        )
     else:
         print(f"Open browser to {web_address} once the server starts.")
 
-    print("NOTE: Use Ctrl+C to stop the web server when finished. Closing the webpage will not stop the server!\n")
+    print(
+        "NOTE: Use Ctrl+C to stop the web server when finished. Closing the webpage will not stop the server!\n"
+    )
     if parsed_args.keep_alive:
         server_timeout = None
         print("--keep-alive was specified, so this server will not time out.\n")
     else:
-        server_timeout = 30*60
-        print("--keep-alive was not specified, so the web server will stop after 30 minutes.\n")
+        server_timeout = 30 * 60
+        print(
+            "--keep-alive was not specified, so the web server will stop after 30 minutes.\n"
+        )
 
     # If the app was started from the CLI, suppress Dash server output
-    log = logging.getLogger('werkzeug')
+    log = logging.getLogger("werkzeug")
     log.setLevel(logging.ERROR)
 
-    run_web_app(host=parsed_args.host, port=parsed_args.port, server_timeout=server_timeout)
+    run_web_app(
+        host=parsed_args.host, port=parsed_args.port, server_timeout=server_timeout
+    )
 
 
 def start_web_app_from_cli():
-    """Hook for starting web app from CLI.
-    """
+    """Hook for starting web app from CLI."""
     web_cli(sys.argv[1:])
