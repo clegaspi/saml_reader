@@ -3,29 +3,16 @@
 from datetime import datetime
 import re
 from typing import TYPE_CHECKING
+from dataclasses import asdict
+from requests import HTTPError
+import json
 
 import flask
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 from dash import ctx, dcc, html
 
-try:
-    from datetime import datetime
-    from dataclasses import asdict
-    from requests import HTTPError
-    import json
-
-    from atlas_sdk.client.api import PublicV2ApiClient
-    from atlas_sdk.auth.profile import Profile
-    from atlas_sdk.auth.oauth import Token, DeviceCode
-
-    from saml_reader import __version__
-
-    ATLAS_SDK_AVAILABLE = True
-    USER_AGENT = f"saml-reader/{__version__}"
-except ImportError:
-    ATLAS_SDK_AVAILABLE = False
-
+from saml_reader import __version__
 from saml_reader.validation.input_validation import MongoFederationConfig
 from saml_reader.cli import run_analysis, OutputStream
 from saml_reader.web.app import app
@@ -35,6 +22,16 @@ from saml_reader.web.callbacks.crypto import (
     CRYPTO_STATE,
 )
 from cryptography.fernet import InvalidToken
+
+try:
+    from atlas_sdk.client.api import PublicV2ApiClient
+    from atlas_sdk.auth.profile import Profile
+    from atlas_sdk.auth.oauth import Token, DeviceCode
+
+    ATLAS_SDK_AVAILABLE = True
+except ImportError:
+    ATLAS_SDK_AVAILABLE = False
+USER_AGENT = f"saml-reader/{__version__}"
 
 
 def submit_analysis_to_backend(data_type, saml_data, comparison_data):
