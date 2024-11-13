@@ -507,7 +507,13 @@ def do_idp_lookup(children):
         )
 
     idps = [
-        {"label": f'{x["displayName"]} ({x["oktaIdpId"]})', "value": json.dumps(x)}
+        {
+            "label": html.Span(
+                [f'{x["displayName"]} ({x["status"]}, ID: {x["id"]})'],
+                style={"font-size": 14},
+            ),
+            "value": json.dumps(x),
+        }
         for x in result.json()["results"]
         if x["protocol"] == "SAML"
     ]
@@ -540,7 +546,7 @@ def do_idp_lookup(children):
                 options=idps,
                 placeholder="Select IdP",
                 style={
-                    "width": "300px",
+                    "width": "70%",
                     "display": "inline-block",
                     "vertical-align": "middle",
                 },
