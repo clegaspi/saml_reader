@@ -141,7 +141,7 @@ def build_layout():
 
             If you would like to look up the identity provider information directly from Atlas,
             please paste the federation app URL below. Note: Lookup requires you to authenticate
-            to Atlas with OIDC. You will be prompted to enter a code in the opened
+            to Atlas with OIDC. You will be prompted to click a link and enter a code in the opened
             webpage, similar to how it is done with the Atlas CLI."""
             ),
             html.Div(
