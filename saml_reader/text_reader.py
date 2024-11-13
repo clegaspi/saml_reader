@@ -1,13 +1,19 @@
 """
 This class handles reading in raw text to be prepped for interpretation by other classes
 """
+
 import sys
 
 import pyperclip
 
 from saml_reader.cert import Certificate
 from saml_reader.saml.parser import RegexSamlParser, StandardSamlParser
-from saml_reader.saml.errors import SamlParsingError, SamlResponseEncryptedError, IsASamlRequest, DataTypeInvalid
+from saml_reader.saml.errors import (
+    SamlParsingError,
+    SamlResponseEncryptedError,
+    IsASamlRequest,
+    DataTypeInvalid,
+)
 from saml_reader.har import HarParser, HarParsingError, NoSAMLResponseFound
 
 
@@ -19,7 +25,7 @@ class TextReader:
         VALID_INPUT_TYPES (set): set of strings of the valid input types for this tool
     """
 
-    VALID_INPUT_TYPES = {'base64', 'xml', 'har'}
+    VALID_INPUT_TYPES = {"base64", "xml", "har"}
 
     def __init__(self, input_type, raw_data):
         """
@@ -47,16 +53,16 @@ class TextReader:
         self._cert = None
         self._saml = None
         self._valid_saml = True
-        self._parser_used = 'strict'
+        self._parser_used = "strict"
         is_encrypted = False
         is_a_response = False
 
         try:
             self._saml = self._parse_raw_data(input_type, raw_data)
             if self._saml.used_relaxed_parser():
-                self._parser_used = 'relaxed'
+                self._parser_used = "relaxed"
         except SamlParsingError:
-            self._parser_used = 'regex'
+            self._parser_used = "regex"
         except SamlResponseEncryptedError as e:
             is_encrypted = True
             self._valid_saml = False
@@ -67,14 +73,17 @@ class TextReader:
             self._parser_used = e.parser
         except NoSAMLResponseFound:
             self._valid_saml = False
-            self._errors.append("Could not find a SAML response in the HAR data.\n"
-                                "Please verify the input type and data is correct.")
+            self._errors.append(
+                "Could not find a SAML response in the HAR data.\n"
+                "Please verify the input type and data is correct."
+            )
             return
 
-        if self._parser_used == 'regex':
+        if self._parser_used == "regex":
             try:
-                self._saml = self._parse_raw_data(input_type, raw_data,
-                                                  parser=RegexSamlParser)
+                self._saml = self._parse_raw_data(
+                    input_type, raw_data, parser=RegexSamlParser
+                )
             except SamlResponseEncryptedError:
                 is_encrypted = True
                 self._saml = None
@@ -84,9 +93,11 @@ class TextReader:
                 self._saml = None
                 self._valid_saml = False
 
-        if self._parser_used != 'strict':
-            self._errors.append(f"WARNING: XML parsing failed. Using fallback '{self._parser_used}' parser. "
-                                f"Some values may not parse correctly.\n")
+        if self._parser_used != "strict":
+            self._errors.append(
+                f"WARNING: XML parsing failed. Using fallback '{self._parser_used}' parser. "
+                f"Some values may not parse correctly.\n"
+            )
 
         if is_encrypted:
             self._errors.append(
@@ -185,7 +196,7 @@ class TextReader:
             (FileNotFoundError) if the file does not exist or cannot be read
         """
         try:
-            with open(filename, 'r') as f:
+            with open(filename, "r") as f:
                 data = f.read()
         except FileNotFoundError:
             raise FileNotFoundError(f"Cannot find file specified: {filename}")
@@ -229,11 +240,11 @@ class TextReader:
         Raises:
             (DataTypeInvalid) if an invalid `input_type` is specified
         """
-        if input_type == 'base64':
+        if input_type == "base64":
             return parser.from_base64(data)
-        if input_type == 'xml':
+        if input_type == "xml":
             return parser.from_xml(data)
-        if input_type == 'har':
+        if input_type == "har":
             try:
                 # TODO: Do the HAR parsing in the constructor?
                 har_parser = HarParser(data)

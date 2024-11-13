@@ -13,6 +13,7 @@ class HarParsingError(Exception):
     """
     Custom exception raised when we get any error from the HAR parser
     """
+
     pass
 
 
@@ -20,6 +21,7 @@ class NoSAMLResponseFound(Exception):
     """
     Custom exception if we don't find a SAML response
     """
+
     pass
 
 
@@ -27,6 +29,7 @@ class HarParser(object):
     """
     Wrapper around haralyzer package to read HAR file contents and retrieve SAML responses.
     """
+
     def __init__(self, data):
         """
         Create object containing raw HAR data.
@@ -59,9 +62,11 @@ class HarParser(object):
         responses = []
         for page in parsed_har.pages:
             for post in page.post_requests:
-                for param in post.get('request', {}).get('postData', {}).get('params', []):
-                    if param['name'] == 'SAMLResponse':
-                        responses.append(param['value'])
+                for param in (
+                    post.get("request", {}).get("postData", {}).get("params", [])
+                ):
+                    if param["name"] == "SAMLResponse":
+                        responses.append(param["value"])
 
         if len(responses) > 1:
             self.errors.append("Multiple SAML responses found. Using the first one.")
@@ -83,5 +88,5 @@ class HarParser(object):
         Returns:
             (HarParser) parser object
         """
-        with open(filename, 'r') as f:
+        with open(filename, "r") as f:
             return cls(f.read())

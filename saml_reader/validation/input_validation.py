@@ -2,6 +2,7 @@
 This module handles capturing user input for comparison values, validating that input,
 and coercing it into the format expected by the tests.
 """
+
 import re
 from datetime import datetime
 
@@ -10,6 +11,7 @@ class _NullUserInput:
     """
     Class that represents an empty user input.
     """
+
     pass
 
 
@@ -17,6 +19,7 @@ class UserInputValidator:
     """
     Validates user input or SAML data against a regular expression and/or an arbitrary function.
     """
+
     def __init__(self):
         """
         Create an instance of the comparison engine. Loads comparison regular expressions
@@ -27,23 +30,21 @@ class UserInputValidator:
         """
         # Regular expressions to validate SAML fields and claim attributes
         self._regex_by_attribute = {
-            'firstName': r'^\s*\S+.*$',
-            'lastName': r'^\s*\S+.*$',
-            'email': r"(?i)\b([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})\b",
-            'issuer': r'^\s*\S+.*$',
-            'acs': r'^https:\/\/auth\.mongodb\.com\/sso\/saml2\/[a-z0-9A-Z]{20}$',
-            'audience': r'^https:\/\/www\.okta\.com\/saml2\/service-provider\/[a-z]{20}$',
-            'encryption': r'(?i)^sha-?(1|256)$',
-            'domains': r'(?i)^[A-Z0-9.-]+?\.[A-Z]{2,}$',
-            'memberOf': r'^\s*\S+.*$',
-            'role_mapping_expected': '(?i)^[YN]$'
+            "firstName": r"^\s*\S+.*$",
+            "lastName": r"^\s*\S+.*$",
+            "email": r"(?i)\b([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})\b",
+            "issuer": r"^\s*\S+.*$",
+            "acs": r"^https:\/\/auth\.mongodb\.com\/sso\/saml2\/[a-z0-9A-Z]{20}$",
+            "audience": r"^https:\/\/www\.okta\.com\/saml2\/service-provider\/[a-z]{20}$",
+            "encryption": r"(?i)^sha-?(1|256)$",
+            "domains": r"(?i)^[A-Z0-9.-]+?\.[A-Z]{2,}$",
+            "memberOf": r"^\s*\S+.*$",
+            "role_mapping_expected": "(?i)^[YN]$",
         }
 
         # Arbitrary functions used to validate SAML field and claim attributes for those
         # that require more than a simple string pattern matching.
-        self._func_by_attribute = {
-            'cert_expiration': self._validate_cert_expiration
-        }
+        self._func_by_attribute = {"cert_expiration": self._validate_cert_expiration}
 
     def __contains__(self, name):
         """
@@ -72,12 +73,14 @@ class UserInputValidator:
         """
         if value == _NullUserInput:
             return True
-        
+
         regex_valid = True
         func_valid = True
 
         if attribute_name in self._regex_by_attribute:
-            regex_valid = bool(re.fullmatch(self._regex_by_attribute[attribute_name], value))
+            regex_valid = bool(
+                re.fullmatch(self._regex_by_attribute[attribute_name], value)
+            )
         if attribute_name in self._func_by_attribute:
             func_valid = bool(self._func_by_attribute[attribute_name](value))
 
@@ -115,9 +118,9 @@ class UserInputValidator:
         """
         try:
             # Make sure it's a correctly-formatted date
-            date = datetime.strptime(value, '%m/%d/%Y')
+            date = datetime.strptime(value, "%m/%d/%Y")
         except ValueError as e:
-            if "does not match format" in e.args[0]: 
+            if "does not match format" in e.args[0]:
                 return False
         if date < datetime.now():
             # Date must be in the future
@@ -129,6 +132,7 @@ class UserInputParser:
     """
     Parses user input after validation to coerce it into the correct format for testing.
     """
+
     def __init__(self):
         """
         Instantiates instance of the parser.
@@ -137,14 +141,14 @@ class UserInputParser:
 
         # Custom parsing functions by attribute
         self._parsing_func_by_attribute = {
-            'domains': lambda x: [v.strip().lower() for v in x],
-            'encryption': lambda x: "SHA" + re.findall(
-                self._validator.get_validation_regex('encryption'), x)[0],
-            'firstName': lambda x: x.strip(),
-            'lastName': lambda x: x.strip(),
-            'email': lambda x: x.strip(),
-            'role_mapping_expected': lambda x: x.upper() == 'Y',
-            'cert_expiration': lambda x: datetime.strptime(x, '%m/%d/%Y').date()
+            "domains": lambda x: [v.strip().lower() for v in x],
+            "encryption": lambda x: "SHA"
+            + re.findall(self._validator.get_validation_regex("encryption"), x)[0],
+            "firstName": lambda x: x.strip(),
+            "lastName": lambda x: x.strip(),
+            "email": lambda x: x.strip(),
+            "role_mapping_expected": lambda x: x.upper() == "Y",
+            "cert_expiration": lambda x: datetime.strptime(x, "%m/%d/%Y").date(),
         }
 
     def parse(self, attribute_name, value):
@@ -159,7 +163,10 @@ class UserInputParser:
         Returns:
             Any: parsed value
         """
-        if value == _NullUserInput or attribute_name not in self._parsing_func_by_attribute:
+        if (
+            value == _NullUserInput
+            or attribute_name not in self._parsing_func_by_attribute
+        ):
             return value
         return self._parsing_func_by_attribute[attribute_name](value)
 
@@ -168,6 +175,7 @@ class MongoComparisonValue:
     """
     Collects comparison value input from the user through stdin prompts
     """
+
     def __init__(self, name, prompt, multi_value=False, default=_NullUserInput):
         """
         Create a comparison value object for a given value type.
@@ -189,7 +197,9 @@ class MongoComparisonValue:
         if self._validator.validate(name, default):
             self._default = default
         else:
-            raise ValueError(f"Invalid default value '{default}' for attribute '{name}'")
+            raise ValueError(
+                f"Invalid default value '{default}' for attribute '{name}'"
+            )
 
     def prompt_for_user_input(self, input_stream=input, output_stream=print):
         """
@@ -204,15 +214,17 @@ class MongoComparisonValue:
                 or the default value if no user input provided
         """
         if self._is_multivalued:
-            user_input = self._get_multi_value(input_stream=input_stream,
-                                               output_stream=output_stream)
+            user_input = self._get_multi_value(
+                input_stream=input_stream, output_stream=output_stream
+            )
         else:
-            user_input = self._get_single_value(input_stream=input_stream,
-                                                output_stream=output_stream)
+            user_input = self._get_single_value(
+                input_stream=input_stream, output_stream=output_stream
+            )
 
         if user_input is _NullUserInput:
             self._value = self._default
-        
+
         self._value = user_input
 
     def get_name(self):
@@ -280,8 +292,9 @@ class MongoComparisonValue:
             (`basestring` or `object`) The user input as a string
                 or the default value if no user input provided
         """
-        return self._get_and_validate_user_input(input_stream=input_stream,
-                                                 output_stream=output_stream)
+        return self._get_and_validate_user_input(
+            input_stream=input_stream, output_stream=output_stream
+        )
 
     def _get_multi_value(self, input_stream=input, output_stream=print):
         """
@@ -298,21 +311,27 @@ class MongoComparisonValue:
         input_to_store = []
         output_stream(self._prompt)
         list_index = 1
-        user_input = self._get_and_validate_user_input(prompt=f"{list_index}.",
-                                                       input_stream=input_stream,
-                                                       output_stream=output_stream)
+        user_input = self._get_and_validate_user_input(
+            prompt=f"{list_index}.",
+            input_stream=input_stream,
+            output_stream=output_stream,
+        )
         while user_input is not _NullUserInput:
             input_to_store.append(user_input)
             list_index += 1
-            user_input = self._get_and_validate_user_input(prompt=f"{list_index}.",
-                                                           input_stream=input_stream,
-                                                           output_stream=output_stream)
+            user_input = self._get_and_validate_user_input(
+                prompt=f"{list_index}.",
+                input_stream=input_stream,
+                output_stream=output_stream,
+            )
         if not input_to_store:
             input_to_store = self._default
 
         return input_to_store
 
-    def _get_and_validate_user_input(self, prompt=None, input_stream=input, output_stream=print):
+    def _get_and_validate_user_input(
+        self, prompt=None, input_stream=input, output_stream=print
+    ):
         """
         Prompts user for input from stdin.
 
@@ -328,7 +347,7 @@ class MongoComparisonValue:
         if prompt is None:
             prompt = self._prompt
 
-        if not re.match(r'.*\s$', prompt):
+        if not re.match(r".*\s$", prompt):
             # If the prompt doesn't end with a whitespace character, add a space for padding
             prompt += " "
 
@@ -338,7 +357,9 @@ class MongoComparisonValue:
                 if self._validator.validate(self._name, user_input):
                     return user_input
                 else:
-                    output_stream(f"Input did not pass validation. Try again or skip the value.")
+                    output_stream(
+                        f"Input did not pass validation. Try again or skip the value."
+                    )
             else:
                 return _NullUserInput
 
@@ -380,7 +401,9 @@ class MongoFederationConfig:
                 try:
                     value_obj.set_value(value)
                 except ValueError:
-                    raise ValueError(f"Input for attribute {name} did not pass validation", name)
+                    raise ValueError(
+                        f"Input for attribute {name} did not pass validation", name
+                    )
                 self.set_value(value_obj)
 
     def get_parsed_value(self, value_name, default=None):
