@@ -110,19 +110,19 @@ def build_layout():
                 First name, last name, and username information can be found in the
                 Support Portal or admin panel.
                 
-                The Audience URI, Assertion Consumer Service URL, and associated domains
+                The Audience URI, Assertion Consumer Service URL, Issuer URI, 
+                SAML certificate expiration date, and associated domains
                 can be found in the customer's federation settings on the identity provider
                 information card.
                 
-                The Issuer URI, encryption type, and SAML certificate expiration date
-                can be found by clicking "Modify" on the identity provider information
-                card in the customer's federation settings.
+                The encryption type is not shown on the card, but could be read from the
+                network requests, but is usually "SHA-256".
                 
                 To determine if role mapping is expected, first look to see if any
                 organizations are associated with the active identity provider configuration.
                 For each organization that is associated, find the associated organization in
                 the Organizations section and click into the settings. From the organization settings,
-                click into Role Mappings. If there are any role mappings defined in any organization,
+                click into Manage Role Mappings. If there are any role mappings defined in any organization,
                 then the customer is expecting role mapping to be configured.
                 
                 For expected group names, if a customer has specified which group name(s) their
@@ -133,8 +133,64 @@ def build_layout():
         ]
     )
 
+    lookup_idp = html.Div(
+        [
+            dcc.Markdown(
+                """
+            #### Look up IdP information
+
+            If you would like to look up the identity provider information directly from Atlas,
+            please paste the federation app URL below. Note: Lookup requires you to authenticate
+            to Atlas with OIDC. You will be prompted to click a link and enter a code in the opened
+            webpage, similar to how it is done with the Atlas CLI."""
+            ),
+            html.Div(
+                [
+                    html.Label(
+                        "Federation URL",
+                        style={
+                            "width": "30%",
+                            "display": "inline-block",
+                            "vertical-align": "middle",
+                        },
+                    ),
+                    dcc.Input(
+                        placeholder="Paste federation URL here",
+                        type="text",
+                        value="",
+                        id="federation-url",
+                        style={
+                            "width": "250px",
+                            "display": "inline-block",
+                            "vertical-align": "middle",
+                        },
+                    ),
+                    html.Button(
+                        "Get IdPs",
+                        id="submit-lookup-idp",
+                        style={"display": "inline-block", "vertical-align": "middle"},
+                    ),
+                    html.Div(
+                        id="div-auth-required-text",
+                        hidden=True,
+                    ),
+                    html.Div(
+                        id="div-lookup-status-text",
+                        hidden=True,
+                    ),
+                ]
+            ),
+        ]
+    )
+
     comparison_fields = html.Div(
         [
+            dcc.Markdown(
+                """
+            #### Federation values
+            
+            Enter or review retrieved federation values below."""
+            ),
             dcc.ConfirmDialogProvider(
                 children=html.Button(
                     "Reset All Values", style={"margin-bottom": "1em"}
@@ -396,7 +452,7 @@ def build_layout():
     )
 
     right_side = html.Div(
-        children=[rs_top_text, html.Br(), comparison_fields],
+        children=[rs_top_text, html.Br(), lookup_idp, html.Br(), comparison_fields],
         style={"display": "inline-block", "vertical-align": "top", "width": "50%"},
     )
 

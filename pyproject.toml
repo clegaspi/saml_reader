@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "saml-reader"
+version = "0.0.8-dev"
+dependencies = [
+  "atlas-sdk-python @ {root:uri}/atlas-sdk-python",
+  "pyperclip",
+  "haralyzer",
+  "python3-saml",
+  "cryptography",
+  "networkx",
+  "xmlsec >= 1.3.14",
+  "dash",  # For web interface
+  "dash-extensions",
+]
+requires-python = ">=3.12"
+authors = [
+  {name = "Christian Legaspi", email = "christian.legaspi@mongodb.com"}
+]
+maintainers = [
+  {name = "Christian Legaspi", email = "christian.legaspi@mongodb.com"}
+]
+description = "SAML response parser for MongoDB Cloud"
+readme = "README.md"
+license = {file = "LICENSE"}
+
+[project.scripts]
+saml_reader = "saml_reader.cli:start_saml_reader"
+saml_web_app = "saml_reader.web.cli_hook:start_web_app_from_cli"
+
+[tool.hatch.build.targets.wheel]
+packages = ["saml_reader"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
