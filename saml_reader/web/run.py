@@ -35,7 +35,12 @@ def run_web_app(host="localhost", port=8050, server_timeout=None, **options):
             shutting it down as a security measure.
         **options (optional): Keyword arguments sent to underlying Dash/Flask launcher.
     """
-    server_func = partial(app.run_server, host=host, port=port, **options)
+    if hasattr(app, "run"):
+        # Modern dash
+        server_func = partial(app.run, host=host, port=port, **options)
+    else:
+        # Legacy dash
+        server_func = partial(app.run_server, host=host, port=port, **options)
     if server_timeout is not None:
         # Avoiding spawning extra thread in case bad clash with gunicorn
         thread = Thread(target=server_func)
