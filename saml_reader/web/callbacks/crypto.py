@@ -1,3 +1,5 @@
+import secrets
+
 from cryptography.fernet import Fernet
 
 # Encryption object unique to this app session
@@ -32,3 +34,12 @@ def decrypt_string(data: str) -> str:
     if not data:
         return ""
     return str(_crypto.decrypt(bytes(data, "UTF-8")), "UTF-8")
+
+
+def generate_session_id() -> str:
+    """Generate a unique session ID.
+
+    Returns:
+        str: unique session ID
+    """
+    return secrets.token_urlsafe(32)

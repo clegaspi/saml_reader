@@ -23,10 +23,13 @@ from saml_reader.web.app import app
 from saml_reader.web.callbacks.crypto import (
     encrypt_string,
     decrypt_string,
+    generate_session_id,
     CRYPTO_STATE,
 )
 
 USER_AGENT = f"saml-reader/{__version__}"
+
+_SESSION_CACHE: dict[str, str] = {}
 
 
 def submit_analysis_to_backend(data_type, saml_data, comparison_data):
@@ -363,7 +366,12 @@ def validate_url_and_authenticate_sdk(
         url_value,
     )
     if not rx or not rx.group("id"):
-        return "Invalid URL", {"color": "red"}, False
+        return (
+            html.P("Invalid URL", style={"color": "red"}),
+            False,
+            {"color": "red"},
+            False,
+        )
 
     federation_id = rx.group("id")
 
@@ -468,7 +476,8 @@ def check_sdk_authentication(n_intervals: int | None) -> tuple[Any, bool, Any, b
     if token is None:
         raise PreventUpdate
 
-    write_token_to_cookie(token)
+    session_id = write_session_id_cookie()
+    write_token_to_cache(session_id, token)
     federation_id = get_cookie("saml-reader-federation-id", decrypt=False)
     return (
         html.P(f"Looking up federation {federation_id}", style={"color": "black"}),
@@ -500,6 +509,14 @@ def do_idp_lookup(children: Any) -> tuple[Any, bool]:
         raise PreventUpdate
 
     client = get_atlas_client()
+    if not client:
+        return (
+            html.P(
+                "There was an error connecting to Atlas.",
+                style={"color": "red"},
+            ),
+            False,
+        )
 
     federation_id = get_cookie("saml-reader-federation-id", decrypt=False)
 
@@ -519,7 +536,7 @@ def do_idp_lookup(children: Any) -> tuple[Any, bool]:
     idps = [
         {
             "label": html.Span(
-                [f'{x["displayName"]} ({x["status"]}, ID: {x["id"]})'],
+                [f"{x['displayName']} ({x['status']}, ID: {x['id']})"],
                 style={"font-size": 14},
             ),
             "value": json.dumps(x),
@@ -618,7 +635,10 @@ def get_atlas_client() -> PublicV2ApiClient | None:
         PublicV2ApiClient | None: If token is valid, returns the client,
         otherwise returns None to indicate the user needs to reauthenticate.
     """
-    token = read_token_from_cookie()
+    session_id = read_session_id_cookie()
+    if not session_id:
+        return None
+    token = read_token_from_cache(session_id)
     if not token:
         return None
 
@@ -632,7 +652,7 @@ def get_atlas_client() -> PublicV2ApiClient | None:
     if not client.test_auth():
         return None
 
-    write_token_to_cookie(client.profile.token)
+    write_token_to_cache(session_id, client.profile.token)
     return client
 
 
@@ -668,7 +688,7 @@ else:
             name (str): name of the cookie
             value (str): value of the cookie
             secure (bool, optional): whether the cookie will be marked as secure.
-                If True, the value will be encrypted. Defaults to True.
+                If True, the value will be encrypted. Defaults to False.
             **kwargs: other configuration values for the cookie
         """
         if secure:
@@ -676,33 +696,62 @@ else:
         ctx.response.set_cookie(name, value, secure=secure, **kwargs)
 
 
-def write_token_to_cookie(token: Token):
-    """Write the OAuth token to a cookie in the response.
+def write_session_id_cookie(session_id: str | None = None) -> str:
+    """Generate a session ID cookie and optionally cache the session ID.
 
     Args:
+        session_id (str | None, optional): the session ID to be set in the cookie.
+            If None, a new session ID will be generated. Defaults to None.
+
+    Returns:
+        str: the session ID that was set in the cookie.
+    """
+
+    if session_id is None:
+        session_id = generate_session_id()
+    set_cookie(
+        "saml-reader-atlas-session",
+        session_id,
+        secure=True,
+        httponly=True,
+    )
+    return session_id
+
+
+def read_session_id_cookie() -> str | None:
+    """Read the session ID from a cookie in the request.
+
+    Returns:
+        str | None: the session ID, if present, otherwise None
+    """
+    return get_cookie("saml-reader-atlas-session")
+
+
+def write_token_to_cache(session_id: str, token: Token):
+    """Write the OAuth token to the session cache for session ID.
+
+    Args:
+        session_id (str): the session ID for which the token is being cached.
         token (Token): the token object
     """
     token_dict = asdict(token)
     token_dict["issue_time"] = token_dict["issue_time"].timestamp()
-    set_cookie(
-        "saml-reader-atlas-token",
-        json.dumps(token_dict),
-        secure=True,
-        httponly=True,
-    )
+    _SESSION_CACHE[session_id] = encrypt_string(json.dumps(token_dict))
 
 
-def read_token_from_cookie() -> Token | None:
-    """Read the OAuth token from a cookie in the request.
+def read_token_from_cache(session_id: str) -> Token | None:
+    """Read the OAuth token from the session cache for the given session ID.
+
+    Args:
+        session_id (str): the session ID for which the token is being retrieved.
 
     Returns:
-        Token: the token object, if present and decryptable,
-        otherwise None
+        Token: the token object, if present, otherwise None
     """
-    token_json = get_cookie("saml-reader-atlas-token")
+    token_json = _SESSION_CACHE.get(session_id, None)
     if not token_json:
         return None
-    token_dict = json.loads(token_json)
+    token_dict = json.loads(decrypt_string(token_json))
     token_dict["issue_time"] = datetime.fromtimestamp(token_dict["issue_time"])
     return Token(**token_dict)
 

@@ -35,7 +35,12 @@ def run_web_app(host="localhost", port=8050, server_timeout=None, **options):
             shutting it down as a security measure.
         **options (optional): Keyword arguments sent to underlying Dash/Flask launcher.
     """
-    server_func = partial(app.run_server, host=host, port=port, **options)
+    if hasattr(app, "run"):
+        # Modern dash
+        server_func = partial(app.run, host=host, port=port, **options)
+    else:
+        # Legacy dash
+        server_func = partial(app.run_server, host=host, port=port, **options)
     if server_timeout is not None:
         # Avoiding spawning extra thread in case bad clash with gunicorn
         thread = Thread(target=server_func)
@@ -52,14 +57,14 @@ def run_web_app(host="localhost", port=8050, server_timeout=None, **options):
 
 if __name__ == "__main__":
     # Defaults
-    host = "0.0.0.0"
+    host = "localhost"
     use_flask_debug_mode = True
 
     # Checking command line arguments
     # TODO: Maybe replace this with argparse
     if len(sys.argv) > 1:
-        if "--local" in sys.argv:
-            host = "localhost"
+        if "--deploy" in sys.argv:
+            host = "0.0.0.0"
         if "--using-debugger" in sys.argv:
             use_flask_debug_mode = False
 
